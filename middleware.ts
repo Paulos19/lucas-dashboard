@@ -1,25 +1,10 @@
-// middleware.ts
-import { auth } from '@/lib/auth';
-import { NextResponse } from 'next/server';
+import NextAuth from 'next-auth';
+import { authConfig } from '@/lib/auth.config';
 
-export default auth((req) => {
-  const isLoggedIn = !!req.auth;
-  const isOnDashboard = req.nextUrl.pathname.startsWith('/dashboard');
-  const isOnAuth = req.nextUrl.pathname.startsWith('/login') || req.nextUrl.pathname.startsWith('/register');
-
-  if (isOnDashboard) {
-    if (isLoggedIn) return NextResponse.next();
-    return NextResponse.redirect(new URL('/login', req.nextUrl)); // Redireciona para login
-  }
-
-  if (isOnAuth) {
-    if (isLoggedIn) return NextResponse.redirect(new URL('/dashboard', req.nextUrl)); // Já logado, vai pro dash
-    return NextResponse.next();
-  }
-
-  return NextResponse.next();
-});
+// Inicializa o NextAuth apenas com a configuração leve para o Middleware
+export default NextAuth(authConfig).auth;
 
 export const config = {
+  // Exclui rotas de API e arquivos estáticos para não rodar o middleware desnecessariamente
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 };

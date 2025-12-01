@@ -1,12 +1,13 @@
-// lib/auth.ts
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaClient } from "@prisma/client";
 import { compare } from "bcryptjs";
+import { authConfig } from "@/lib/auth.config";
 
 const prisma = new PrismaClient();
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  ...authConfig, // Herda a config leve
   providers: [
     Credentials({
       credentials: {
@@ -30,30 +31,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           id: user.id,
           name: user.name,
           email: user.email,
-          // Retornamos dados extras úteis para o front
           image: null 
         };
       },
     }),
   ],
-  pages: {
-    signIn: "/login",
-  },
-  callbacks: {
-    async session({ session, token }) {
-      if (token.sub && session.user) {
-        session.user.id = token.sub;
-        // Opcional: Buscar telefone aqui se precisar no front constantemente
-      }
-      return session;
-    },
-    async jwt({ token, user }) {
-      if (user) {
-        token.sub = user.id;
-      }
-      return token;
-    },
-  },
-  session: { strategy: "jwt" },
-  secret: process.env.AUTH_SECRET, // Adicione isso no .env
 });
