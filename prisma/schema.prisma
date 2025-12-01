@@ -1,0 +1,151 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // Altere para "sqlite" se estiver em dev local sem Docker
+  url      = env("DATABASE_URL")
+}
+
+// O Corretor da CSB (User)
+model User {
+  id       String  @id @default(cuid())
+  name     String
+  email    String  @unique
+  password String
+  phone    String  @unique
+  creci    String? // Registro profissional (SUSEP/CRECI)
+
+  // --- Configurações do Agente (Obrigatórios para o código do n8n/API funcionar) ---
+  onboardingCompleted Boolean @default(false)
+  welcomeMessage      String?
+
+  // Configuração das Perguntas de Qualificação (Ex: "Qual seu nome?", "CEP?")
+  qualificationConfig Json?
+
+  // Regras de Classificação de Leads (Tiers 1 a 4)
+  classificationConfig Json?
+
+  // Base de Conhecimento RAG (Memória da IA)
+  ragKnowledgeBaseRaw       Json? // Instruções cruas editáveis pelo corretor
+  ragKnowledgeBaseCondensed Json? // Texto "mastigado" pela IA para o prompt
+  // ---------------------------------------------------------------------------------
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  leads             Lead[]
+  products          InsuranceProduct[]
+  agendamentos      Agendamento[]
+  availabilitySlots AvailabilitySlot[]
+}
+
+// O Produto (Seguro Residencial)
+model InsuranceProduct {
+  id          String @id @default(cuid())
+  name        String // Ex: "Bradesco Residencial Sob Medida"
+  description String @db.Text // Texto livre para o RAG (Argumentos de venda)
+
+  // Detalhes Técnicos
+  monthlyPremium Float // Valor aproximado mensal (R$)
+  coverages      Json? // Ex: { "incendio": "500k", "eletrico": "10k" }
+  assistances    Json? // Ex: ["Chaveiro", "Encanador", "Vidraceiro"]
+
+  status String @default("ACTIVE") // ACTIVE, ARCHIVED
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+  leads  Lead[] @relation("Interest")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// O Cliente (Lead)
+model Lead {
+  id      String     @id @default(cuid())
+  name    String
+  contato String     @unique // Telefone/WhatsApp do Lead
+  status  LeadStatus @default(ENTRANTE)
+
+  // Dados de Inteligência e Classificação
+  segmentacao         String? // PEQUENO, MEDIO, GRANDE (Tier)
+  classificacao       String? // Texto descritivo da IA
+  faturamentoEstimado String? // Ou "Valor do Patrimônio" no contexto de seguros
+  atividadePrincipal  String? // Profissão ou Risco
+
+  // Dados Dinâmicos (Respostas das perguntas do bot)
+  dynamicData Json?
+
+  // Contexto da Conversa
+  resumoDaConversa  String? @db.Text
+  historicoCompleto Json?
+
+  // Controle de Vendas
+  vendaRealizada Boolean @default(false)
+  valorVenda     Float?
+
+  // Relacionamentos
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  // Interesse no Seguro
+  interestedInProductId String?
+  interestedInProduct   InsuranceProduct? @relation("Interest", fields: [interestedInProductId], references: [id])
+  firstContactSent      Boolean           @default(false)
+
+  agendamento Agendamento?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Agendamento (Reunião/Cotação)
+model Agendamento {
+  id       String   @id @default(cuid())
+  dataHora DateTime
+  tipo     String // Ex: "COTACAO_RESIDENCIAL", "SUPORTE"
+  status   String   @default("PENDENTE")
+  resumo   String?  @db.Text
+
+  leadId String @unique
+  lead   Lead   @relation(fields: [leadId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Slots de Disponibilidade (Agenda do Corretor)
+model AvailabilitySlot {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  startTime DateTime
+  endTime   DateTime
+  isBooked  Boolean  @default(false)
+
+  leadId String? // Opcional: saber qual lead ocupou este slot
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, startTime])
+}
+
+// Enum para os status do Lead
+enum LeadStatus {
+  ENTRANTE
+  QUALIFICADO
+  ATENDIDO
+  AGENDADO_COTACAO
+  PROPOSTA_ENVIADA
+  VENDA_REALIZADA
+  PERDIDO
+  ARQUIVADO
+}
