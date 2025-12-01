@@ -1,0 +1,274 @@
+{
+  "name": "Lucas - Scheduler (Prospecção Ativa)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "A cada 10 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        460,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/leads/uncontacted",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "uj9/haa/BCEPS0zmm7aPVTCgrNOnS8UHc5rGD3MT6VG7Y4B55FrWaD1mKzG6DUlN"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-leads",
+      "name": "Buscar Leads Pendentes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        240
+      ],
+      "notesInFlow": true,
+      "notes": "⚠️ Troque localhost:3000 pela URL de produção do seu Dashboard na Vercel"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-batches",
+      "name": "Processar 1 por 1",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        900,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('1. Configurações').item.json.serverUrl }}/message/sendText/{{ $('1. Configurações').item.json.instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('1. Configurações').item.json.apiKey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.welcomeMessage }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-whatsapp",
+      "name": "Enviar WhatsApp (Evolution)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=lucas_state:{{ $json.phone.replace(/\\D/g, '') }}@s.whatsapp.net",
+        "value": "={{ JSON.stringify({\n  status: \"AGUARDANDO_RESPOSTA\",\n  passo: \"inicio\",\n  historicoCompleto: [\n    { \"role\": \"assistant\", \"content\": $json.welcomeMessage }\n  ],\n  dadosColetados: {}\n}) }}",
+        "expire": true,
+        "ttl": 86400
+      },
+      "id": "redis-init",
+      "name": "Redis: Iniciar Memória",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        240
+      ],
+      "credentials": {
+        "redis": {
+          "id": "0t8maoGpKOA6XwaX",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "wait",
+      "name": "Delay Anti-Spam",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1780,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "serverUrl",
+              "value": "https://n8n-evo.qqfurw.easypanel.host"
+            },
+            {
+              "name": "apiKey",
+              "value": "E0F4431468BA-4A41-A64A-305C70FAB753"
+            },
+            {
+              "name": "instance",
+              "value": "Lucas"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "config",
+      "name": "1. Configurações",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        100
+      ],
+      "notesInFlow": true,
+      "notes": "Configure aqui sua Evolution API"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "merge-config",
+      "name": "Merge Config",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        240
+      ]
+    }
+  ],
+  "connections": {
+    "A a cada 10 min": {
+      "main": [
+        [
+          {
+            "node": "Buscar Leads Pendentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Leads Pendentes": {
+      "main": [
+        [
+          {
+            "node": "Processar 1 por 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar 1 por 1": {
+      "main": [
+        [
+          {
+            "node": "Merge Config",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "1. Configurações": {
+      "main": [
+        [
+          {
+            "node": "Merge Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Config": {
+      "main": [
+        [
+          {
+            "node": "Enviar WhatsApp (Evolution)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar WhatsApp (Evolution)": {
+      "main": [
+        [
+          {
+            "node": "Redis: Iniciar Memória",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis: Iniciar Memória": {
+      "main": [
+        [
+          {
+            "node": "Delay Anti-Spam",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delay Anti-Spam": {
+      "main": [
+        [
+          {
+            "node": "Processar 1 por 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

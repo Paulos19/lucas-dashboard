@@ -1,3 +1,4 @@
+// app/api/users/by-phone/[phone]/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { normalizePhoneNumber } from '@/lib/phoneUtils';
@@ -12,7 +13,7 @@ type Context = {
 };
 
 export async function GET(request: Request, context: Context) {
-  // 1. Validação de Segurança (Chave n8n)
+  // 1. Validação de Segurança
   const apiKey = request.headers.get('x-api-key');
   if (apiKey !== N8N_API_KEY) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
@@ -27,31 +28,41 @@ export async function GET(request: Request, context: Context) {
   try {
     const incomingNormalized = normalizePhoneNumber(phone);
 
-    // 2. Busca o usuário com todas as configurações
+    // 2. Busca todos os usuários para encontrar o especialista correto
+    // Otimização: Em produção, idealmente normalizaríamos o telefone no banco para buscar direto
     const users = await prisma.user.findMany({
       select: {
         id: true,
         name: true,
         phone: true,
         qualificationConfig: true,
-        classificationConfig: true, // Campo novo
-        ragKnowledgeBaseCondensed: true 
+        classificationConfig: true,
+        ragKnowledgeBaseCondensed: true,
+        // --- NOVO: Incluir produtos ativos no retorno ---
+        products: {
+            where: { status: 'ACTIVE' },
+            select: {
+                id: true,
+                name: true,
+                description: true,
+                monthlyPremium: true,
+                coverages: true,
+                assistances: true
+            }
+        }
+        // ------------------------------------------------
       }
     });
 
     const specialist = users.find(u => normalizePhoneNumber(u.phone) === incomingNormalized);
 
     if (specialist) {
-      // Tenta pegar o valor do campo condensado
       const condensedRAG = (specialist.ragKnowledgeBaseCondensed as any)?.condensed_knowledge || '';
-
-      // Tenta pegar as regras de classificação (com fallback seguro)
       const classificationRules = (specialist.classificationConfig as any) || {
-          // REGRAS ADAPTADAS PARA SEGURO RESIDENCIAL
-          tier1: "Cliente sem histórico, curioso, ou perfil que não se encaixa em Residencial (ex: PJ, Comercial).",
-          tier2: "Cliente com interesse ativo em Residencial, já possui seguro (ideal para portabilidade/upgrade).",
-          tier3: "Cliente com casa de alto valor (mais de 1 milhão), ou com necessidades especiais (coleções, joias, etc.).",
-          tier4: "Lead de altíssima prioridade (ex: indicação direta, alto patrimônio, risco urgente)."
+          tier1: "Cliente fora do perfil.",
+          tier2: "Cliente com potencial baixo ou produto de entrada.",
+          tier3: "Cliente ideal para cotação padrão.",
+          tier4: "Cliente VIP / Alto valor."
       };
 
       return NextResponse.json({
@@ -59,15 +70,15 @@ export async function GET(request: Request, context: Context) {
         specialist: {
           id: specialist.id,
           name: specialist.name,
-          // Retorna as perguntas configuradas (fallback se vazio)
+          phone: specialist.phone, // Importante para o fallback de contato
           questions: (specialist.qualificationConfig as any)?.questions || [
-            // PERGUNTAS ADAPTADAS PARA SEGURO RESIDENCIAL
             "Qual o seu nome completo?",
-            "Qual o seu CEP residencial (para verificar a área de risco)?",
-            "Você já tem um seguro residencial? Se sim, qual seguradora?"
+            "Qual o seu CEP residencial?",
+            "Já possui seguro atualmente?"
           ],
           ragKnowledge: condensedRAG,
-          classificationRules: classificationRules // <--- ENVIADO PARA O N8N
+          classificationRules: classificationRules,
+          products: specialist.products // <--- N8N recebe isso agora
         }
       });
     } else {
