@@ -5,23 +5,15 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 const N8N_API_KEY = process.env.N8N_INTERNAL_API_KEY;
 
-// Função auxiliar para padronizar telefones (Mesma lógica da rota de Leads)
 function standardizePhone(phone: string): string {
   if (!phone) return '';
-  
-  // 1. Remove tudo que não é número (tira o @s.whatsapp.net, +, -, etc)
   let clean = phone.replace(/\D/g, '');
-
-  // 2. Lógica para Brasil (DDI 55)
-  // Se tem 10 ou 11 dígitos (ex: 11999998888), assume que é BR e adiciona 55
   if (clean.length >= 10 && clean.length <= 11) {
     clean = '55' + clean;
   }
-  
   return clean;
 }
 
-// POST: Cria um agendamento via n8n
 export async function POST(request: Request) {
   // 1. Segurança
   const apiKey = request.headers.get('x-api-key');
@@ -33,24 +25,33 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { userId, contatoLead, dataHoraISO, nome, email, resumo } = body;
 
-    // --- CORREÇÃO: Limpa o telefone antes de buscar ---
-    const cleanPhone = standardizePhone(contatoLead);
-    // --------------------------------------------------
+    // --- VALIDAÇÃO DE DATA (Correção do Erro) ---
+    // Tenta criar a data. Se o formato for inválido, o .getTime() retorna NaN
+    const dataAgendamento = new Date(dataHoraISO);
+    
+    if (isNaN(dataAgendamento.getTime())) {
+        console.error(`Data inválida recebida: ${dataHoraISO}`);
+        return NextResponse.json({ 
+            error: 'Formato de data inválido. Use ISO 8601 (ex: 2025-12-30T14:00:00)' 
+        }, { status: 400 });
+    }
+    // --------------------------------------------
 
-    // 2. Busca o Lead pelo telefone limpo
+    const cleanPhone = standardizePhone(contatoLead);
+
+    // 2. Busca o Lead
     const lead = await prisma.lead.findFirst({
       where: { 
         userId: userId,
-        contato: cleanPhone // Agora bate com o banco
+        contato: cleanPhone
       }
     });
 
     if (!lead) {
-      console.log(`Lead não encontrado. Buscado por: ${cleanPhone} para User: ${userId}`);
-      return NextResponse.json({ error: 'Lead não encontrado para este corretor.' }, { status: 404 });
+      return NextResponse.json({ error: 'Lead não encontrado.' }, { status: 404 });
     }
 
-    // 3. Atualiza dados do Lead (Email capturado)
+    // 3. Atualiza Lead
     const dynamicData = lead.dynamicData ? JSON.parse(JSON.stringify(lead.dynamicData)) : {};
     if (email) dynamicData.email = email;
     if (nome) dynamicData.nomeConfirmado = nome;
@@ -64,15 +65,15 @@ export async function POST(request: Request) {
         }
     });
 
-    // 4. Cria o Agendamento
+    // 4. Cria Agendamento
     const agendamento = await prisma.agendamento.create({
       data: {
         userId,
         leadId: lead.id,
-        dataHora: new Date(dataHoraISO),
+        dataHora: dataAgendamento, // Usa a data validada
         tipo: 'REUNIAO_VENDAS',
         status: 'CONFIRMADO',
-        resumo: resumo || `Agendamento automático via Lucas. Cliente: ${nome}, Email: ${email}`
+        resumo: resumo || `Agendamento automático via Lucas.`
       }
     });
 
