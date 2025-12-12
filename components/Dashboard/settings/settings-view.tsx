@@ -2,6 +2,8 @@
 
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react'; // <--- Importe o useSession
+// ... outros imports (mantenha os existentes)
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { Loader2, Camera, User, Lock, Mail, Phone, BadgeCheck, UploadCloud } from 'lucide-react';
-import { upload } from '@vercel/blob/client'; // Importante: npm install @vercel/blob
+import { upload } from '@vercel/blob/client';
 
 interface SettingsViewProps {
   user: any;
@@ -18,11 +20,12 @@ interface SettingsViewProps {
 
 export function SettingsView({ user }: SettingsViewProps) {
   const router = useRouter();
+  const { update } = useSession(); // <--- Extraia a função update
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [loadingPassword, setLoadingPassword] = useState(false);
   const [uploading, setUploading] = useState(false);
   
-  // Estado do Perfil
+  // ... (mantenha os estados profileData, passData e useRef)
   const [profileData, setProfileData] = useState({
     name: user.name || '',
     email: user.email || '',
@@ -31,7 +34,6 @@ export function SettingsView({ user }: SettingsViewProps) {
     image: user.image || ''
   });
 
-  // Estado da Senha
   const [passData, setPassData] = useState({
     currentPassword: '',
     newPassword: '',
@@ -39,8 +41,6 @@ export function SettingsView({ user }: SettingsViewProps) {
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // --- Handlers ---
 
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
@@ -53,17 +53,16 @@ export function SettingsView({ user }: SettingsViewProps) {
     setUploading(true);
 
     try {
-      // Upload direto para o Vercel Blob (Client-Side Upload)
       const newBlob = await upload(file.name, file, {
         access: 'public',
         handleUploadUrl: '/api/upload',
       });
 
+      // Atualiza o estado local para preview imediato
       setProfileData(prev => ({ ...prev, image: newBlob.url }));
-      toast.success("Foto carregada! Salve o perfil para persistir.");
+      toast.success("Foto carregada! Clique em 'Salvar Alterações'.");
     } catch (error) {
       toast.error("Erro ao fazer upload da imagem.");
-      console.error(error);
     } finally {
       setUploading(false);
     }
@@ -74,6 +73,7 @@ export function SettingsView({ user }: SettingsViewProps) {
     setLoadingProfile(true);
 
     try {
+      // 1. Salva no Banco de Dados
       const res = await fetch('/api/settings/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -81,6 +81,13 @@ export function SettingsView({ user }: SettingsViewProps) {
       });
 
       if (!res.ok) throw new Error();
+
+      // 2. Atualiza a Sessão do NextAuth (Isso atualiza a Sidebar)
+      await update({
+        name: profileData.name,
+        email: profileData.email,
+        image: profileData.image
+      });
 
       toast.success("Perfil atualizado com sucesso!");
       router.refresh();
@@ -91,6 +98,7 @@ export function SettingsView({ user }: SettingsViewProps) {
     }
   };
 
+  // ... (Mantenha o resto do componente, handleChangePassword e o return, iguais)
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -127,12 +135,12 @@ export function SettingsView({ user }: SettingsViewProps) {
   return (
     <div className="grid gap-6">
       <Tabs defaultValue="profile" className="w-full">
+        {/* ... (Conteúdo das Tabs igual ao anterior) */}
         <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
           <TabsTrigger value="profile">Meu Perfil</TabsTrigger>
           <TabsTrigger value="security">Segurança</TabsTrigger>
         </TabsList>
 
-        {/* --- ABA PERFIL --- */}
         <TabsContent value="profile">
           <form onSubmit={handleUpdateProfile}>
             <Card>
@@ -239,7 +247,6 @@ export function SettingsView({ user }: SettingsViewProps) {
           </form>
         </TabsContent>
 
-        {/* --- ABA SEGURANÇA --- */}
         <TabsContent value="security">
           <form onSubmit={handleChangePassword}>
             <Card>
