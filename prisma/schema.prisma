@@ -17,6 +17,7 @@ model User {
   password String
   phone    String  @unique
   creci    String? // Registro profissional (SUSEP/CRECI)
+  image    String?
 
   // --- Configurações do Agente (Obrigatórios para o código do n8n/API funcionar) ---
   onboardingCompleted Boolean @default(false)

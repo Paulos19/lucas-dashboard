@@ -1,6 +1,7 @@
 // app/api/agendamentos/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { auth } from '@/lib/auth';
 
 const prisma = new PrismaClient();
 const N8N_API_KEY = process.env.N8N_INTERNAL_API_KEY;
@@ -12,6 +13,28 @@ function standardizePhone(phone: string): string {
     clean = '55' + clean;
   }
   return clean;
+}
+
+// NOVO: GET para listar agendamentos do corretor
+export async function GET(request: Request) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+
+  try {
+    const agendamentos = await prisma.agendamento.findMany({
+      where: { userId: session.user.id },
+      include: {
+        lead: {
+          select: { name: true, contato: true, status: true }
+        }
+      },
+      orderBy: { dataHora: 'asc' }
+    });
+    
+    return NextResponse.json(agendamentos);
+  } catch (error) {
+    return NextResponse.json({ error: 'Erro ao buscar agendamentos' }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {

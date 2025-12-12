@@ -63,6 +63,23 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-slate-50/50 dark:bg-slate-950 text-foreground;
+    /* Um padrão sutil de background pode adicionar textura */
+    background-image: radial-gradient(circle at top left, rgba(59, 130, 246, 0.05), transparent 40%);
   }
+}
+
+/* Scrollbar personalizada fina */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-200 dark:bg-slate-800 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-300 dark:bg-slate-700;
 }
