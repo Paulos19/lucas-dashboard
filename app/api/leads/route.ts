@@ -1,12 +1,28 @@
 // app/api/leads/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { auth } from '@/lib/auth'; // Importe auth para validar sessão no GET
+import { auth } from '@/lib/auth';
 
 const prisma = new PrismaClient();
 const N8N_INTERNAL_API_KEY = process.env.N8N_INTERNAL_API_KEY;
 
-// GET: Lista leads do corretor logado (Para o Dashboard)
+// Função auxiliar para padronizar telefones BR
+function standardizePhone(phone: string): string {
+  // 1. Remove tudo que não é número
+  let clean = phone.replace(/\D/g, '');
+
+  // 2. Lógica para Brasil (DDI 55)
+  // Se tem 10 ou 11 dígitos (ex: 11999998888 ou 1133334444), assume que é BR e adiciona 55
+  if (clean.length >= 10 && clean.length <= 11) {
+    clean = '55' + clean;
+  }
+  
+  // (Opcional) Poderíamos tratar o 9º dígito aqui, mas o DDI é o principal causador de duplicidade.
+  
+  return clean;
+}
+
+// GET: Lista leads do corretor logado
 export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
@@ -27,27 +43,23 @@ export async function GET(request: Request) {
   }
 }
 
-// POST: Cria ou Atualiza Lead (Usado pelo Dashboard E pelo n8n)
+// POST: Cria ou Atualiza Lead (Dashboard + n8n)
 export async function POST(request: Request) {
-  // Tenta autenticar via Sessão (Dashboard) ou via API Key (n8n)
   const session = await auth();
   const apiKey = request.headers.get('x-api-key');
   
   let userId = session?.user?.id;
 
-  // Se não tem sessão, verifica API Key
+  // Validação de Segurança (API Key ou Sessão)
   if (!userId) {
       if (apiKey !== N8N_INTERNAL_API_KEY || !N8N_INTERNAL_API_KEY) {
         return NextResponse.json({ error: 'Acesso não autorizado.' }, { status: 401 });
       }
-      // Se veio do n8n, o userId deve vir no corpo da requisição
   }
 
   try {
     const body = await request.json();
-    
-    // Se veio do n8n, usa o userId do body. Se veio do dashboard, usa da sessão.
-    const finalUserId = userId || body.userId;
+    const finalUserId = userId || body.userId; // Prioriza sessão, fallback para body (n8n)
 
     const { 
         nome, 
@@ -63,11 +75,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'UserId e Contato são obrigatórios' }, { status: 400 });
     }
 
-    const cleanPhone = contato.replace(/\D/g, '');
+    // --- CORREÇÃO DE DUPLICIDADE ---
+    // Padroniza o telefone (Ex: transforma 11999998888 em 5511999998888)
+    const cleanPhone = standardizePhone(contato);
+    // -------------------------------
 
     const lead = await prisma.lead.upsert({
         where: {
-            contato: cleanPhone
+            contato: cleanPhone // Busca pela chave padronizada
         },
         update: {
             name: nome || undefined,
@@ -81,13 +96,13 @@ export async function POST(request: Request) {
         create: {
             userId: finalUserId,
             name: nome || 'Lead Novo',
-            contato: cleanPhone,
+            contato: cleanPhone, // Salva padronizado
             segmentacao: segmentacao || 'ENTRANTE',
             faturamentoEstimado: faturamentoEstimado || '',
             dynamicData: dynamicData || {},
             historicoCompleto: historicoCompleto || [],
             status: status || 'ENTRANTE',
-            firstContactSent: false // Se criado manualmente no dash, o Lucas ainda vai chamar
+            firstContactSent: false
         }
     });
 
