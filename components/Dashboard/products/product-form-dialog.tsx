@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch'; // Certifique-se de que este componente existe
 import { Plus, Loader2, ShieldCheck, Pen } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -26,7 +27,8 @@ export function ProductFormDialog({ product, trigger, onSuccess }: ProductFormDi
     monthlyPremium: '',
     description: '',
     assistances: '', 
-    coverages: '' 
+    coverages: '',
+    isPostSales: false // Novo campo para Pós-Venda
   });
 
   useEffect(() => {
@@ -37,10 +39,18 @@ export function ProductFormDialog({ product, trigger, onSuccess }: ProductFormDi
         description: product.description || '',
         // Converte array de volta para string CSV para edição
         assistances: Array.isArray(product.assistances) ? product.assistances.join(', ') : '',
-        coverages: typeof product.coverages === 'string' ? product.coverages : JSON.stringify(product.coverages || '')
+        coverages: typeof product.coverages === 'string' ? product.coverages : JSON.stringify(product.coverages || ''),
+        isPostSales: product.isPostSales || false // Carrega o estado atual
       });
     } else if (!product && open) {
-        setFormData({ name: '', monthlyPremium: '', description: '', assistances: '', coverages: '' });
+        setFormData({ 
+            name: '', 
+            monthlyPremium: '', 
+            description: '', 
+            assistances: '', 
+            coverages: '', 
+            isPostSales: false 
+        });
     }
   }, [product, open]);
 
@@ -128,6 +138,20 @@ export function ProductFormDialog({ product, trigger, onSuccess }: ProductFormDi
                         value={formData.assistances}
                         onChange={e => setFormData({...formData, assistances: e.target.value})}
                     />
+                </div>
+
+                {/* --- SEÇÃO DE PÓS-VENDA --- */}
+                <div className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm col-span-2 bg-slate-50 dark:bg-slate-900/50">
+                  <div className="space-y-0.5">
+                    <Label className="text-base font-medium">Produto de Pós-Venda</Label>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      Se ativado, este produto será oferecido automaticamente para leads inativos há 30 dias.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={formData.isPostSales}
+                    onCheckedChange={(checked) => setFormData({ ...formData, isPostSales: checked })}
+                  />
                 </div>
 
                 <div className="space-y-2 col-span-2">

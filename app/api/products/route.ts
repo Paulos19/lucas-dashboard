@@ -1,4 +1,3 @@
-// app/api/products/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { auth } from '@/lib/auth';
@@ -28,7 +27,9 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { name, description, monthlyPremium, assistances, coverages } = body;
+    
+    // Extraímos o novo campo isPostSales junto com os outros dados
+    const { name, description, monthlyPremium, assistances, coverages, isPostSales } = body;
 
     if (!name || !description) {
         return NextResponse.json({ error: 'Nome e Descrição são obrigatórios' }, { status: 400 });
@@ -41,7 +42,9 @@ export async function POST(request: Request) {
         description,
         monthlyPremium: parseFloat(monthlyPremium) || 0,
         assistances: typeof assistances === 'string' ? assistances.split(',').map((s: string) => s.trim()) : assistances,
-        coverages: coverages // Espera um objeto JSON já estruturado ou string
+        coverages: coverages,
+        // Define se é Pós-Venda (se não vier, assume false)
+        isPostSales: isPostSales || false 
       }
     });
 

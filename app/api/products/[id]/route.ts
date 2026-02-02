@@ -38,7 +38,9 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, description, monthlyPremium, assistances, coverages } = body;
+    
+    // Extraímos o isPostSales para atualização
+    const { name, description, monthlyPremium, assistances, coverages, isPostSales } = body;
 
     const product = await prisma.insuranceProduct.update({
       where: { id, userId: session.user.id },
@@ -46,16 +48,20 @@ export async function PUT(
         name,
         description,
         monthlyPremium: parseFloat(monthlyPremium),
-        // Garante que assistances seja sempre um array de strings
+        // Garante que assistances seja sempre um array de strings limpo
         assistances: typeof assistances === 'string' 
             ? assistances.split(',').map((s: string) => s.trim()).filter(Boolean)
             : assistances,
-        coverages // Mantém como veio (string ou json)
+        coverages, // Mantém como veio (string ou json)
+        
+        // Atualiza a flag no banco de dados
+        isPostSales: isPostSales 
       }
     });
 
     return NextResponse.json(product);
   } catch (error) {
+    console.error("Erro ao atualizar:", error);
     return NextResponse.json({ error: 'Erro ao atualizar produto' }, { status: 500 });
   }
 }

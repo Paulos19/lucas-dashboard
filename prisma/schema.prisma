@@ -55,7 +55,8 @@ model InsuranceProduct {
   coverages      Json? // Ex: { "incendio": "500k", "eletrico": "10k" }
   assistances    Json? // Ex: ["Chaveiro", "Encanador", "Vidraceiro"]
 
-  status String @default("ACTIVE") // ACTIVE, ARCHIVED
+  status      String  @default("ACTIVE") // ACTIVE, ARCHIVED
+  isPostSales Boolean @default(false)
 
   userId String
   user   User   @relation(fields: [userId], references: [id])
