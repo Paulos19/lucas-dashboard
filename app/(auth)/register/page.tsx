@@ -141,7 +141,7 @@ export default function RegisterPage() {
 
             {/* CRECI (Novo Campo) */}
             <div className="space-y-2">
-                <Label htmlFor="creci">CRECI</Label>
+                <Label htmlFor="creci">SUSEP</Label>
                 <div className="relative">
                 <Badge className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input

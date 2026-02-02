@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { 
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
-import { Search, MoreVertical, Wrench, Shield, Trash2, Edit2, Loader2 } from 'lucide-react';
+import { Search, MoreVertical, Wrench, Shield, Trash2, Edit2, Loader2, Megaphone } from 'lucide-react';
 import { ProductFormDialog } from './product-form-dialog';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -60,9 +60,19 @@ export function ProductsGrid({ products }: { products: any[] }) {
                 <Card key={prod.id} className="group hover:shadow-lg transition-all duration-300 border-t-4 border-t-red-500 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm overflow-hidden">
                     <CardHeader className="pb-3 bg-gradient-to-b from-red-50/50 to-transparent dark:from-red-900/10 pt-5 relative">
                         <div className="flex justify-between items-start mb-2">
-                            <Badge className="bg-red-100 text-red-700 hover:bg-red-200 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800">
-                                Residencial
-                            </Badge>
+                            {/* Grupo de Badges */}
+                            <div className="flex flex-wrap gap-2">
+                                <Badge className="bg-red-100 text-red-700 hover:bg-red-200 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800">
+                                    Residencial
+                                </Badge>
+                                
+                                {/* Badge de Pós-Venda Condicional */}
+                                {prod.isPostSales && (
+                                    <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800 gap-1 pr-2.5">
+                                        <Megaphone className="h-3 w-3" /> Pós-Venda
+                                    </Badge>
+                                )}
+                            </div>
                             
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>

@@ -8,42 +8,53 @@ const N8N_INTERNAL_API_KEY = process.env.N8N_INTERNAL_API_KEY;
 
 // Função auxiliar para padronizar telefones BR
 function standardizePhone(phone: string): string {
-  // 1. Remove tudo que não é número
   let clean = phone.replace(/\D/g, '');
-
-  // 2. Lógica para Brasil (DDI 55)
-  // Se tem 10 ou 11 dígitos (ex: 11999998888 ou 1133334444), assume que é BR e adiciona 55
   if (clean.length >= 10 && clean.length <= 11) {
     clean = '55' + clean;
   }
-  
-  // (Opcional) Poderíamos tratar o 9º dígito aqui, mas o DDI é o principal causador de duplicidade.
-  
   return clean;
 }
 
-// GET: Lista leads do corretor logado
+// GET: Lista leads com Paginação e Filtros
 export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
+  const { searchParams } = new URL(request.url);
+  const status = searchParams.get('status'); // Filtro de coluna
+  const page = parseInt(searchParams.get('page') || '1');
+  const limit = parseInt(searchParams.get('limit') || '20');
+  const skip = (page - 1) * limit;
+
   try {
+    const whereClause: any = {
+        userId: session.user.id
+    };
+
+    if (status) {
+        whereClause.status = status;
+    }
+
     const leads = await prisma.lead.findMany({
-      where: { userId: session.user.id },
-      orderBy: { updatedAt: 'desc' },
+      where: whereClause,
+      orderBy: { updatedAt: 'desc' }, // Ordem cronológica
+      take: limit,
+      skip: skip,
       include: {
         interestedInProduct: {
             select: { name: true }
         }
       }
     });
+    
     return NextResponse.json(leads);
   } catch (error) {
+    console.error("Erro ao buscar leads:", error);
     return NextResponse.json({ error: 'Erro ao buscar leads' }, { status: 500 });
   }
 }
 
-// POST: Cria ou Atualiza Lead (Dashboard + n8n)
+// POST: Mantido (Criação/Update)
 export async function POST(request: Request) {
   const session = await auth();
   const apiKey = request.headers.get('x-api-key');
@@ -59,30 +70,22 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const finalUserId = userId || body.userId; // Prioriza sessão, fallback para body (n8n)
+    const finalUserId = userId || body.userId; 
 
     const { 
-        nome, 
-        contato, 
-        segmentacao, 
-        faturamentoEstimado, 
-        dynamicData, 
-        historicoCompleto, 
-        status 
+        nome, contato, segmentacao, faturamentoEstimado, 
+        dynamicData, historicoCompleto, status 
     } = body;
 
     if (!finalUserId || !contato) {
         return NextResponse.json({ error: 'UserId e Contato são obrigatórios' }, { status: 400 });
     }
 
-    // --- CORREÇÃO DE DUPLICIDADE ---
-    // Padroniza o telefone (Ex: transforma 11999998888 em 5511999998888)
     const cleanPhone = standardizePhone(contato);
-    // -------------------------------
 
     const lead = await prisma.lead.upsert({
         where: {
-            contato: cleanPhone // Busca pela chave padronizada
+            contato: cleanPhone
         },
         update: {
             name: nome || undefined,
@@ -96,7 +99,7 @@ export async function POST(request: Request) {
         create: {
             userId: finalUserId,
             name: nome || 'Lead Novo',
-            contato: cleanPhone, // Salva padronizado
+            contato: cleanPhone,
             segmentacao: segmentacao || 'ENTRANTE',
             faturamentoEstimado: faturamentoEstimado || '',
             dynamicData: dynamicData || {},

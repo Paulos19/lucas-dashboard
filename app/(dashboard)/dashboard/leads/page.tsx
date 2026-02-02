@@ -1,32 +1,41 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { PrismaClient } from '@prisma/client';
-// IMPORTANTE: Agora importamos o gerenciador de visualização, não apenas a tabela
 import { LeadsView } from '@/components/Dashboard/leads/leads-view';
 
 const prisma = new PrismaClient();
 
-// Força dynamic rendering para que os dados sejam sempre frescos ao acessar
+// Status que usamos no Kanban
+const KANBAN_STATUSES = [
+    'ENTRANTE', 'QUALIFICADO', 'AGENDADO_COTACAO', 'PROPOSTA_ENVIADA', 'VENDA_REALIZADA'
+];
+
 export const dynamic = 'force-dynamic';
 
 export default async function LeadsPage() {
-  // 1. Verificação de Autenticação no Servidor
   const session = await auth();
   if (!session?.user?.id) redirect('/login');
 
   const userId = session.user.id;
 
-  // 2. Busca de Dados Otimizada (Server Side)
-  // Incluímos 'interestedInProduct' pois o Kanban exibe essa tag nos cards
-  const leads = await prisma.lead.findMany({
-    where: { userId },
-    orderBy: { updatedAt: 'desc' },
-    include: {
-        interestedInProduct: {
-            select: { name: true }
+  // --- OTIMIZAÇÃO DE CARGA INICIAL ---
+  // Buscamos apenas os 10 primeiros leads de cada status em paralelo.
+  // Isso reduz o payload de ~6000 itens para no máximo 50.
+  const promises = KANBAN_STATUSES.map(status => 
+    prisma.lead.findMany({
+        where: { userId, status: status as any },
+        orderBy: { updatedAt: 'desc' },
+        take: 10, // Apenas a primeira "página"
+        include: {
+            interestedInProduct: { select: { name: true } }
         }
-    }
-  });
+    })
+  );
+
+  const results = await Promise.all(promises);
+  
+  // Flatten: Junta todos os arrays em um único array de leads
+  const initialLeads = results.flat();
 
   return (
     <div className="container mx-auto py-8 max-w-7xl animate-in fade-in duration-500">
@@ -39,8 +48,7 @@ export default async function LeadsPage() {
         </p>
       </div>
 
-      {/* 3. Renderiza o componente Híbrido (Kanban + Tabela) */}
-      <LeadsView initialData={leads} />
+      <LeadsView initialData={initialLeads} />
     </div>
   );
 }
