@@ -78,6 +78,10 @@ model Lead {
   faturamentoEstimado String? // Ou "Valor do Patrimônio" no contexto de seguros
   atividadePrincipal  String? // Profissão ou Risco
 
+  dataRenovacao DateTime? // Para o Pós-Venda: quando vence a apólice?
+  numeroApolice String? // Número oficial para busca
+  origemLead    String?   @default("MANUAL")
+
   // Dados Dinâmicos (Respostas das perguntas do bot)
   dynamicData Json?
 
@@ -100,8 +104,9 @@ model Lead {
 
   agendamento Agendamento?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  attachments Attachment[]
 }
 
 // Agendamento (Reunião/Cotação)
@@ -137,6 +142,18 @@ model AvailabilitySlot {
   createdAt DateTime @default(now())
 
   @@index([userId, startTime])
+}
+
+model Attachment {
+  id   String @id @default(cuid())
+  url  String // URL pública do Vercel Blob
+  name String // Nome original (ex: proposta.pdf)
+  type String // "application/pdf" ou "image/png"
+
+  leadId String
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
 }
 
 // Enum para os status do Lead

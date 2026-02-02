@@ -14,19 +14,25 @@ export async function POST(request: Request) {
     const jsonResponse = await handleUpload({
       body,
       request,
-      onBeforeGenerateToken: async () => {
-        // Permite uploads apenas para usuários logados
+      onBeforeGenerateToken: async (pathname) => {
+        // Validação de segurança extra
         return {
-          allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp'],
+          // AQUI ESTÁ A MUDANÇA: Adicionamos 'application/pdf'
+          allowedContentTypes: [
+            'image/jpeg', 
+            'image/png', 
+            'image/webp', 
+            'application/pdf'
+          ],
           tokenPayload: JSON.stringify({
             userId: session.user?.id,
           }),
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
-        // Aqui você poderia salvar no banco via webhook se quisesse, 
-        // mas faremos isso no submit do formulário para simplificar.
-        console.log('Upload concluído:', blob.url);
+        console.log('Upload concluído no Blob Storage:', blob.url);
+        // Nota: O salvamento no banco (tabela Attachment) será feito 
+        // pelo frontend logo após o upload, para vincular ao Lead correto.
       },
     });
 

@@ -5,7 +5,6 @@ import { LeadDetailsView } from '@/components/Dashboard/leads/lead-details-view'
 
 const prisma = new PrismaClient();
 
-// Força dynamic rendering
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
@@ -18,7 +17,7 @@ export default async function LeadPage({ params }: PageProps) {
 
   const { id } = await params;
 
-  // Busca o Lead com validação de segurança (apenas leads do usuário)
+  // Busca o Lead com anexos
   const lead = await prisma.lead.findUnique({
     where: {
       id,
@@ -26,7 +25,10 @@ export default async function LeadPage({ params }: PageProps) {
     },
     include: {
       interestedInProduct: true,
-      agendamento: true
+      agendamento: true,
+      attachments: {          // <--- ADICIONADO
+        orderBy: { createdAt: 'desc' }
+      }
     }
   });
 

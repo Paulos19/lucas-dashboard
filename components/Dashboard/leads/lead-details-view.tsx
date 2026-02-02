@@ -4,15 +4,16 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'; // Instalar se não tiver
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
-  Phone, Calendar, Mail, MapPin, Trash2, Edit, ArrowLeft, 
-  MessageSquare, User, FileText, Activity 
+  Phone, Calendar, ArrowLeft, 
+  MessageSquare, FileText, Activity, Trash2, Edit 
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { LeadFormDialog } from './lead-form-dialog';
+import { LeadAttachments } from './lead-attachments'; // <--- Importação do Novo Componente
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 interface LeadDetailsViewProps {
@@ -40,12 +41,14 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
   };
 
   const getStatusColor = (status: string) => {
-    // Reutilizar lógica de cores ou importar de um utilitário
     const map: any = {
         'ENTRANTE': 'bg-blue-500',
         'QUALIFICADO': 'bg-purple-500',
+        'AGENDADO_COTACAO': 'bg-amber-500',
+        'PROPOSTA_ENVIADA': 'bg-orange-500',
         'VENDA_REALIZADA': 'bg-green-500',
-        'PERDIDO': 'bg-red-500'
+        'PERDIDO': 'bg-red-500',
+        'ARQUIVADO': 'bg-gray-500'
     };
     return map[status] || 'bg-slate-500';
   };
@@ -76,7 +79,7 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
       {/* Cabeçalho do Lead */}
       <div className="flex flex-col md:flex-row gap-6 items-start bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <Avatar className="h-24 w-24 border-4 border-slate-50 dark:border-slate-800">
-            <AvatarFallback className="text-3xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
+            <AvatarFallback className="text-3xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold">
                 {lead.name.substring(0, 2).toUpperCase()}
             </AvatarFallback>
         </Avatar>
@@ -84,11 +87,11 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
         <div className="flex-1 space-y-2">
             <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">{lead.name}</h1>
-                <Badge className={`${getStatusColor(lead.status)} text-white border-0`}>
+                <Badge className={`${getStatusColor(lead.status)} text-white border-0 hover:bg-opacity-90`}>
                     {lead.status.replace('_', ' ')}
                 </Badge>
                 {lead.segmentacao && (
-                    <Badge variant="outline" className="text-muted-foreground">
+                    <Badge variant="outline" className="text-muted-foreground border-slate-300 dark:border-slate-700">
                         {lead.segmentacao}
                     </Badge>
                 )}
@@ -111,7 +114,7 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
         </div>
 
         <div className="w-full md:w-auto flex flex-col gap-2">
-            <Button className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white" onClick={() => window.open(`https://wa.me/${lead.contato}`, '_blank')}>
+            <Button className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white shadow-sm" onClick={() => window.open(`https://wa.me/${lead.contato}`, '_blank')}>
                 <MessageSquare className="h-4 w-4" /> Conversar no WhatsApp
             </Button>
         </div>
@@ -122,27 +125,37 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
         
         {/* Coluna Esquerda - Informações Rápidas */}
         <div className="space-y-6">
-            <Card>
+            <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
                 <CardHeader>
                     <CardTitle className="text-base">Detalhes do Cliente</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm">
                     <div>
-                        <span className="text-muted-foreground block mb-1">Classificação IA</span>
-                        <p className="font-medium">{lead.classificacao || "Ainda não classificado"}</p>
+                        <span className="text-muted-foreground block mb-1 text-xs uppercase tracking-wider">Classificação IA</span>
+                        <p className="font-medium text-slate-900 dark:text-slate-100">{lead.classificacao || "Ainda não classificado"}</p>
                     </div>
                     <div className="h-px bg-slate-100 dark:bg-slate-800" />
                     <div>
-                        <span className="text-muted-foreground block mb-1">Potencial (Estimado)</span>
+                        <span className="text-muted-foreground block mb-1 text-xs uppercase tracking-wider">Potencial (Estimado)</span>
                         <p className="font-medium text-lg text-green-600 dark:text-green-400">
                             {lead.faturamentoEstimado ? `R$ ${lead.faturamentoEstimado}` : "Não informado"}
                         </p>
                     </div>
                     <div className="h-px bg-slate-100 dark:bg-slate-800" />
                     <div>
-                        <span className="text-muted-foreground block mb-1">Atividade Principal</span>
-                        <p className="font-medium">{lead.atividadePrincipal || "-"}</p>
+                        <span className="text-muted-foreground block mb-1 text-xs uppercase tracking-wider">Atividade Principal</span>
+                        <p className="font-medium text-slate-900 dark:text-slate-100">{lead.atividadePrincipal || "-"}</p>
                     </div>
+                    {/* Campos de Pós-Venda se existirem */}
+                    {lead.numeroApolice && (
+                        <>
+                            <div className="h-px bg-slate-100 dark:bg-slate-800" />
+                            <div>
+                                <span className="text-muted-foreground block mb-1 text-xs uppercase tracking-wider">Apólice Ativa</span>
+                                <p className="font-mono text-slate-700 dark:text-slate-300">{lead.numeroApolice}</p>
+                            </div>
+                        </>
+                    )}
                 </CardContent>
             </Card>
         </div>
@@ -150,36 +163,54 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
         {/* Coluna Direita - Histórico e IA */}
         <div className="lg:col-span-2">
             <Tabs defaultValue="resumo" className="w-full">
-                <TabsList className="w-full justify-start bg-transparent border-b rounded-none h-auto p-0 mb-4 gap-6">
-                    <TabsTrigger value="resumo" className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent px-0 pb-2">
+                <TabsList className="w-full justify-start bg-transparent border-b border-slate-200 dark:border-slate-800 rounded-none h-auto p-0 mb-6 gap-6 overflow-x-auto no-scrollbar">
+                    <TabsTrigger 
+                        value="resumo" 
+                        className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 data-[state=active]:bg-transparent px-1 pb-3 text-muted-foreground hover:text-slate-900 transition-colors"
+                    >
                         Resumo IA
                     </TabsTrigger>
-                    <TabsTrigger value="historico" className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent px-0 pb-2">
-                        Histórico Completo
+                    <TabsTrigger 
+                        value="historico" 
+                        className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 data-[state=active]:bg-transparent px-1 pb-3 text-muted-foreground hover:text-slate-900 transition-colors"
+                    >
+                        Histórico
                     </TabsTrigger>
-                    <TabsTrigger value="dados" className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent px-0 pb-2">
+                    
+                    {/* --- NOVA ABA DE ARQUIVOS --- */}
+                    <TabsTrigger 
+                        value="arquivos" 
+                        className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 data-[state=active]:bg-transparent px-1 pb-3 text-muted-foreground hover:text-slate-900 transition-colors"
+                    >
+                        Arquivos & Propostas
+                    </TabsTrigger>
+                    {/* --------------------------- */}
+
+                    <TabsTrigger 
+                        value="dados" 
+                        className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 data-[state=active]:bg-transparent px-1 pb-3 text-muted-foreground hover:text-slate-900 transition-colors"
+                    >
                         Dados Coletados
                     </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="resumo">
+                <TabsContent value="resumo" className="mt-0">
                     <Card className="border-none shadow-sm bg-blue-50/50 dark:bg-blue-900/10">
                         <CardHeader>
-                            <CardTitle className="text-blue-900 dark:text-blue-100 flex items-center gap-2">
+                            <CardTitle className="text-blue-900 dark:text-blue-100 flex items-center gap-2 text-lg">
                                 <FileText className="h-5 w-5" /> Resumo da Conversa
                             </CardTitle>
                             <CardDescription>Gerado automaticamente pelo Lucas com base no WhatsApp.</CardDescription>
                         </CardHeader>
-                        <CardContent className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                        <CardContent className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap text-sm">
                             {lead.resumoDaConversa || "Nenhum resumo gerado ainda. Inicie uma conversa para que a IA possa analisar o perfil do cliente."}
                         </CardContent>
                     </Card>
                 </TabsContent>
 
-                <TabsContent value="historico">
-                    <Card>
+                <TabsContent value="historico" className="mt-0">
+                    <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
                         <CardContent className="pt-6">
-                            {/* Aqui você renderizaria lead.historicoCompleto (array de mensagens) */}
                             <div className="text-center py-10 text-muted-foreground">
                                 <MessageSquare className="h-10 w-10 mx-auto mb-3 opacity-20" />
                                 <p>Histórico de mensagens detalhado em breve.</p>
@@ -188,16 +219,27 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
                     </Card>
                 </TabsContent>
 
-                <TabsContent value="dados">
-                    <Card>
+                {/* --- CONTEÚDO DA NOVA ABA DE ARQUIVOS --- */}
+                <TabsContent value="arquivos" className="mt-0">
+                    <LeadAttachments 
+                        leadId={lead.id} 
+                        initialAttachments={lead.attachments || []} 
+                    />
+                </TabsContent>
+                {/* ---------------------------------------- */}
+
+                <TabsContent value="dados" className="mt-0">
+                    <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
                         <CardHeader>
-                            <CardTitle>Dados Dinâmicos</CardTitle>
+                            <CardTitle className="text-base">Dados Dinâmicos</CardTitle>
                             <CardDescription>Respostas capturadas durante a qualificação.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <pre className="bg-slate-950 text-slate-50 p-4 rounded-lg overflow-x-auto text-xs">
-                                {JSON.stringify(lead.dynamicData || {}, null, 2)}
-                            </pre>
+                            <div className="bg-slate-950 text-slate-50 p-4 rounded-lg overflow-x-auto">
+                                <pre className="text-xs font-mono">
+                                    {JSON.stringify(lead.dynamicData || {}, null, 2)}
+                                </pre>
+                            </div>
                         </CardContent>
                     </Card>
                 </TabsContent>

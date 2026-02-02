@@ -1,7 +1,8 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { PrismaClient } from '@prisma/client';
-import { LeadsTable } from '@/components/Dashboard/leads/leads-table';
+// IMPORTANTE: Agora importamos o gerenciador de visualização, não apenas a tabela
+import { LeadsView } from '@/components/Dashboard/leads/leads-view';
 
 const prisma = new PrismaClient();
 
@@ -13,9 +14,12 @@ export default async function LeadsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/login');
 
-  // 2. Busca de Dados Otimizada (Apenas o necessário para a tabela)
+  const userId = session.user.id;
+
+  // 2. Busca de Dados Otimizada (Server Side)
+  // Incluímos 'interestedInProduct' pois o Kanban exibe essa tag nos cards
   const leads = await prisma.lead.findMany({
-    where: { userId: session.user.id },
+    where: { userId },
     orderBy: { updatedAt: 'desc' },
     include: {
         interestedInProduct: {
@@ -35,8 +39,8 @@ export default async function LeadsPage() {
         </p>
       </div>
 
-      {/* 3. Renderiza a Tabela Cliente (Hydration) */}
-      <LeadsTable data={leads} />
+      {/* 3. Renderiza o componente Híbrido (Kanban + Tabela) */}
+      <LeadsView initialData={leads} />
     </div>
   );
 }
