@@ -1,50 +1,63 @@
-import { auth } from "@/lib/auth";
 import { PrismaClient } from "@prisma/client";
 import { NextResponse } from "next/server";
 
 const prisma = new PrismaClient();
+// 1. Usamos a MESMA variável que já funciona nas outras rotas
+const N8N_INTERNAL_API_KEY = process.env.N8N_INTERNAL_API_KEY;
 
 export async function GET(req: Request) {
-  // Verificação de API Key (Mesma lógica do seu arquivo middleware ou headers)
   const apiKey = req.headers.get("x-api-key");
-  if (apiKey !== process.env.API_SECRET) { // Defina isso no .env
+
+  // 2. Verificação corrigida
+  if (!N8N_INTERNAL_API_KEY || apiKey !== N8N_INTERNAL_API_KEY) {
+      console.log("Falha de Auth - Recebido:", apiKey, "Esperado:", N8N_INTERNAL_API_KEY); // Log para debug na Vercel
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // 1. Buscar produto de Pós-Venda Ativo
-  const postSalesProduct = await prisma.insuranceProduct.findFirst({
-    where: { 
-      isPostSales: true, 
-      status: "ACTIVE" 
+  try {
+    // 3. Buscar produto de Pós-Venda Ativo
+    const postSalesProduct = await prisma.insuranceProduct.findFirst({
+      where: { 
+        isPostSales: true, 
+        status: "ACTIVE" 
+      }
+    });
+
+    if (!postSalesProduct) {
+      // Retorna 200 com array vazio ou aviso, para não quebrar o n8n com erro 404
+      return NextResponse.json({ 
+        message: "Nenhum produto de pós-venda ativo", 
+        product: null, 
+        leads: [] 
+      });
     }
-  });
 
-  if (!postSalesProduct) {
-    return NextResponse.json({ message: "Nenhum produto de pós-venda configurado" }, { status: 404 });
+    // 4. Calcular data de corte (30 dias atrás)
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 30);
+
+    // 5. Buscar Leads elegíveis
+    const staleLeads = await prisma.lead.findMany({
+      where: {
+        updatedAt: {
+          lte: cutoffDate // Menor ou igual a 30 dias atrás
+        },
+        status: {
+          notIn: ["PERDIDO", "ARQUIVADO", "VENDA_REALIZADA"]
+        },
+        // Opcional: Filtra leads que NÃO receberam contato recente (firstContactSent)
+        // firstContactSent: true 
+      },
+      take: 50
+    });
+
+    return NextResponse.json({
+      product: postSalesProduct,
+      leads: staleLeads
+    });
+    
+  } catch (error) {
+      console.error(error);
+      return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
-
-  // 2. Calcular data de corte (30 dias atrás)
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - 30);
-
-  // 3. Buscar Leads elegíveis
-  // Critério: Atualizado antes de 30 dias E (Status != VENDA_REALIZADA ou PERDIDO)
-  // Ajuste os status conforme sua regra de negócio
-  const staleLeads = await prisma.lead.findMany({
-    where: {
-      updatedAt: {
-        lte: cutoffDate // Menor ou igual a 30 dias atrás
-      },
-      status: {
-        notIn: ["PERDIDO", "ARQUIVADO"] // Não perturbar leads perdidos/arquivados
-      },
-      // Evitar mandar mensagem se já enviamos pós-venda recentemente (opcional, requer novo campo no Lead)
-    },
-    take: 50 // Limite por execução para não bloquear WhatsApp
-  });
-
-  return NextResponse.json({
-    product: postSalesProduct,
-    leads: staleLeads
-  });
 }
