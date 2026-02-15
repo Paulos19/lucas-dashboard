@@ -9,6 +9,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
 // O Corretor da CSB (User)
 model User {
   id       String  @id @default(cuid())
@@ -16,28 +21,23 @@ model User {
   email    String  @unique
   password String
   phone    String  @unique
-  creci    String? // Registro profissional (SUSEP/CRECI)
+  creci    String?
   image    String?
+  
+  // Novo campo Role com valor padrão USER
+  role     Role    @default(USER) 
 
-  // --- Configurações do Agente (Obrigatórios para o código do n8n/API funcionar) ---
+  // ... mantenha o resto dos campos (onboardingCompleted, etc) ...
   onboardingCompleted Boolean @default(false)
   welcomeMessage      String?
-
-  // Configuração das Perguntas de Qualificação (Ex: "Qual seu nome?", "CEP?")
   qualificationConfig Json?
-
-  // Regras de Classificação de Leads (Tiers 1 a 4)
   classificationConfig Json?
-
-  // Base de Conhecimento RAG (Memória da IA)
-  ragKnowledgeBaseRaw       Json? // Instruções cruas editáveis pelo corretor
-  ragKnowledgeBaseCondensed Json? // Texto "mastigado" pela IA para o prompt
-  // ---------------------------------------------------------------------------------
-
+  ragKnowledgeBaseRaw       Json?
+  ragKnowledgeBaseCondensed Json?
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relacionamentos
   leads             Lead[]
   products          InsuranceProduct[]
   agendamentos      Agendamento[]
