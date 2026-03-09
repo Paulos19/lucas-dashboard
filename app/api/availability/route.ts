@@ -9,7 +9,7 @@ const N8N_API_KEY = process.env.N8N_INTERNAL_API_KEY;
 export async function GET(request: Request) {
   const session = await auth();
   const apiKey = request.headers.get('x-api-key');
-  
+
   // Pega o userId da query string (para o n8n)
   const { searchParams } = new URL(request.url);
   const queryUserId = searchParams.get('userId');
@@ -19,14 +19,14 @@ export async function GET(request: Request) {
   // 1. Autenticação via Sessão (Acesso pelo Dashboard)
   if (session?.user?.id) {
     targetUserId = session.user.id;
-  } 
+  }
   // 2. Autenticação via API Key (Acesso pelo n8n)
   else if (apiKey === N8N_API_KEY) {
     if (!queryUserId) {
-       return NextResponse.json({ error: 'userId é obrigatório para acesso via API' }, { status: 400 });
+      return NextResponse.json({ error: 'userId é obrigatório para acesso via API' }, { status: 400 });
     }
     targetUserId = queryUserId;
-  } 
+  }
   // 3. Bloqueio
   else {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
@@ -35,14 +35,33 @@ export async function GET(request: Request) {
   try {
     // Retorna slots futuros apenas
     const slots = await prisma.availabilitySlot.findMany({
-      where: { 
+      where: {
         userId: targetUserId, // Usa o ID definido pela lógica acima
         startTime: { gte: new Date() }, // Apenas futuros
         isBooked: false // Apenas livres
       },
       orderBy: { startTime: 'asc' }
     });
-    return NextResponse.json(slots);
+
+    // Formata o horário para Brasília (GMT-3) mantendo o ISO original
+    const slotsFormatados = slots.map(slot => {
+      const dataHoraBR = new Date(slot.startTime).toLocaleString('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      return {
+        ...slot,
+        dataHoraISO: slot.startTime, // IA vai usar isso na tool criar_agendamento
+        horarioBrasilia: dataHoraBR // IA vai ler isso para o cliente
+      };
+    });
+
+    return NextResponse.json(slotsFormatados);
   } catch (error) {
     return NextResponse.json({ error: 'Erro ao buscar disponibilidade' }, { status: 500 });
   }
@@ -55,12 +74,12 @@ export async function POST(request: Request) {
 
   try {
     const { startISO, endISO } = await request.json();
-    
+
     const start = new Date(startISO);
     const end = new Date(endISO);
 
     if (start >= end) {
-        return NextResponse.json({ error: 'Hora final deve ser maior que inicial' }, { status: 400 });
+      return NextResponse.json({ error: 'Hora final deve ser maior que inicial' }, { status: 400 });
     }
 
     const slot = await prisma.availabilitySlot.create({
@@ -80,21 +99,21 @@ export async function POST(request: Request) {
 
 // DELETE: Remove slot (Mantém proteção apenas por sessão)
 export async function DELETE(request: Request) {
-    const session = await auth();
-    if (!session?.user?.id) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-    try {
-        const { searchParams } = new URL(request.url);
-        const id = searchParams.get('id');
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
 
-        if (!id) return NextResponse.json({ error: 'ID necessário' }, { status: 400 });
+    if (!id) return NextResponse.json({ error: 'ID necessário' }, { status: 400 });
 
-        await prisma.availabilitySlot.delete({
-            where: { id, userId: session.user.id }
-        });
+    await prisma.availabilitySlot.delete({
+      where: { id, userId: session.user.id }
+    });
 
-        return NextResponse.json({ success: true });
-    } catch (error) {
-        return NextResponse.json({ error: 'Erro ao excluir' }, { status: 500 });
-    }
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: 'Erro ao excluir' }, { status: 500 });
+  }
 }
