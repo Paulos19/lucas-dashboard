@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     // URL Base da sua API (Atualize para a URL de produção quando publicar)
-    const API_BASE_URL = 'http://localhost:3000'; 
+    const API_BASE_URL = 'https://lucas-dashboard.vercel.app'; 
     
     // Elementos da interface
     const loginView = document.getElementById('loginView');
