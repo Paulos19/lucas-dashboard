@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { 
+      width: 320px; 
+      padding: 15px; 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+      margin: 0;
+      color: #1e293b;
+    }
+    h3 {
+      margin-top: 0;
+      margin-bottom: 15px;
+      font-size: 16px;
+      text-align: center;
+    }
+    label {
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 5px;
+      display: block;
+    }
+    input { 
+      width: 100%; 
+      padding: 8px 10px; 
+      box-sizing: border-box; 
+      margin-bottom: 15px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 13px;
+      outline: none;
+    }
+    input:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+    button { 
+      width: 100%; 
+      padding: 10px; 
+      cursor: pointer; 
+      background: #0f172a; 
+      color: white; 
+      border: none; 
+      border-radius: 6px; 
+      font-size: 14px;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    button:hover:not(:disabled) {
+      background: #334155;
+    }
+    button:disabled { 
+      background: #94a3b8; 
+      cursor: not-allowed;
+    }
+    .secondary-btn {
+      background: transparent;
+      color: #475569;
+      border: 1px solid #cbd5e1;
+      margin-top: 10px;
+    }
+    .secondary-btn:hover:not(:disabled) {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .status { 
+      margin-top: 15px; 
+      font-size: 13px; 
+      text-align: center; 
+      min-height: 18px;
+      font-weight: 500;
+    }
+    .success { color: #16a34a; }
+    .error { color: #dc2626; }
+    .loading { color: #3b82f6; }
+    
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .user-info {
+      text-align: center;
+      margin-bottom: 15px;
+      padding: 10px;
+      background: #f8fafc;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+    }
+    .user-info p { margin: 0 0 5px 0; font-size: 13px; color: #475569;}
+    .user-info strong { color: #0f172a; }
+  </style>
+</head>
+<body>
+  <h3>Lucas CRM - Captura de Lead</h3>
+  
+  <!-- View de Login -->
+  <div id="loginView" class="view active">
+    <label for="email">E-mail:</label>
+    <input type="email" id="email" placeholder="seu@email.com" autocomplete="email">
+    
+    <label for="password">Senha:</label>
+    <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+    
+    <button id="loginBtn">Entrar</button>
+  </div>
+
+  <!-- View Logado -->
+  <div id="captureView" class="view">
+    <div class="user-info">
+      <p>Logado como:</p>
+      <strong id="userNameDisplay">Carregando...</strong>
+    </div>
+    
+    <button id="captureBtn">Tirar Print e Analisar</button>
+    <button id="logoutBtn" class="secondary-btn">Sair</button>
+  </div>
+  
+  <div id="status" class="status"></div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
