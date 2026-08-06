@@ -9,7 +9,7 @@ interface OverviewChartProps {
 
 export function OverviewChart({ data }: OverviewChartProps) {
   return (
-    <Card className="col-span-4 lg:col-span-3 border-none shadow-md bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
+    <Card className="col-span-4 lg:col-span-3">
       <CardHeader>
         <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">
           Performance de Leads (Últimos 6 meses)

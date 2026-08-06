@@ -124,7 +124,7 @@ export function LeadFormDialog({ lead, trigger, onSuccess, open: controlledOpen,
                     <div className="space-y-2 col-span-2">
                         <Label>Status do Funil</Label>
                         <select 
-                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
                             value={formData.status}
                             onChange={e => setFormData({...formData, status: e.target.value})}
                         >

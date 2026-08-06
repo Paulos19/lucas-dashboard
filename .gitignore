@@ -41,3 +41,7 @@ yarn-error.log*
 next-env.d.ts
 
 /lib/generated/prisma
+
+# custom files
+"renovacoes Trimestre.xlsx"
+"Lucas - Scheduler (LangChain v2) (4).json"

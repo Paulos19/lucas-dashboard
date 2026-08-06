@@ -220,7 +220,7 @@ export function LeadsTable({ data }: { data: Lead[] }) {
       </div>
 
       {/* Tabela */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm shadow-sm">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-white/50 dark:bg-slate-900/50 backdrop-blur-xs shadow-xs">
         <Table>
           <TableHeader className="bg-slate-50 dark:bg-slate-900">
             {table.getHeaderGroups().map((headerGroup) => (

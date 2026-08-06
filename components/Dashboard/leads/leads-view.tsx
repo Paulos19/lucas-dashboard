@@ -31,7 +31,7 @@ export function LeadsView({ initialData }: LeadsViewProps) {
             className={cn(
               "gap-2 transition-all",
               view === 'kanban' 
-                ? "bg-white text-slate-950 shadow-sm hover:bg-white dark:bg-slate-950 dark:text-slate-50" 
+                ? "bg-white text-slate-950 shadow-xs hover:bg-white dark:bg-slate-950 dark:text-slate-50" 
                 : "text-muted-foreground hover:text-slate-900 dark:hover:text-slate-50"
             )}
           >
@@ -46,7 +46,7 @@ export function LeadsView({ initialData }: LeadsViewProps) {
             className={cn(
               "gap-2 transition-all",
               view === 'table' 
-                ? "bg-white text-slate-950 shadow-sm hover:bg-white dark:bg-slate-950 dark:text-slate-50" 
+                ? "bg-white text-slate-950 shadow-xs hover:bg-white dark:bg-slate-950 dark:text-slate-50" 
                 : "text-muted-foreground hover:text-slate-900 dark:hover:text-slate-50"
             )}
           >

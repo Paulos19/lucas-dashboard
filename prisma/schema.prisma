@@ -83,6 +83,11 @@ model Lead {
   numeroApolice String? // Número oficial para busca
   origemLead    String?   @default("MANUAL")
 
+  // Dados da Planilha (n8n routing)
+  campanha      String?
+  ramo          String?
+  fase          String?
+
   // Dados Dinâmicos (Respostas das perguntas do bot)
   dynamicData Json?
 
@@ -95,8 +100,9 @@ model Lead {
   valorVenda     Float?
 
   // Relacionamentos
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
+  userId String?
+  user   User?  @relation(fields: [userId], references: [id])
+  corretorNome String? // Nome do corretor extraído da planilha para vínculo posterior
 
   // Interesse no Seguro
   interestedInProductId String?

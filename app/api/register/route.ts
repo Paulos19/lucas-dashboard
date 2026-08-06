@@ -41,6 +41,17 @@ export async function POST(request: Request) {
       },
     });
 
+    // Resgate de leads: vincula os leads importados que têm o mesmo nome
+    await prisma.lead.updateMany({
+      where: {
+        corretorNome: name,
+        userId: null
+      },
+      data: {
+        userId: user.id
+      }
+    });
+
     return NextResponse.json({ 
         success: true, 
         userId: user.id, 

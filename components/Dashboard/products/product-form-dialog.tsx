@@ -141,7 +141,7 @@ export function ProductFormDialog({ product, trigger, onSuccess }: ProductFormDi
                 </div>
 
                 {/* --- SEÇÃO DE PÓS-VENDA --- */}
-                <div className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm col-span-2 bg-slate-50 dark:bg-slate-900/50">
+                <div className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-xs col-span-2 bg-slate-50 dark:bg-slate-900/50">
                   <div className="space-y-0.5">
                     <Label className="text-base font-medium">Produto de Pós-Venda</Label>
                     <p className="text-sm text-slate-500 dark:text-slate-400">

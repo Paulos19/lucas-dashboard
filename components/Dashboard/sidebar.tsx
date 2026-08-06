@@ -12,6 +12,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut, useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Visão Geral' },
@@ -45,7 +46,7 @@ export function Sidebar() {
       className={cn(
         "hidden md:flex flex-col h-screen sticky top-0 z-50",
         "bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-r border-slate-200 dark:border-slate-800",
-        "shadow-sm transition-colors duration-300"
+        "shadow-xs transition-colors duration-300"
       )}
     >
       {/* Header / Logo */}
@@ -58,7 +59,7 @@ export function Sidebar() {
         <button 
             onClick={() => setIsCollapsed(!isCollapsed)}
             className={cn(
-                "absolute -right-3 top-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-full p-1.5 shadow-sm text-slate-500 hover:text-blue-600 transition-all",
+                "absolute -right-3 top-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-full p-1.5 shadow-xs text-slate-500 hover:text-blue-600 transition-all",
                 "hover:scale-110 active:scale-95 z-50"
             )}
         >
@@ -126,7 +127,7 @@ export function Sidebar() {
         <div className={cn("flex items-center gap-3", isCollapsed ? "justify-center" : "")}>
             
             {/* Avatar Placeholder */}
-            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-md ring-2 ring-white dark:ring-slate-950">
+            <div className="h-9 w-9 rounded-full bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-md ring-2 ring-white dark:ring-slate-950">
                 <span className="text-white font-bold text-xs">
                     {session?.user?.name?.charAt(0) || "U"}
                 </span>
@@ -148,20 +149,24 @@ export function Sidebar() {
             )}
 
             {!isCollapsed && (
-                <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                    onClick={() => signOut()}
-                >
-                    <LogOut className="h-4 w-4" />
-                </Button>
+                <div className="flex gap-1">
+                    <ThemeToggle />
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        onClick={() => signOut()}
+                    >
+                        <LogOut className="h-4 w-4" />
+                    </Button>
+                </div>
             )}
         </div>
         
         {/* SignOut Button for Collapsed Mode */}
         {isCollapsed && (
-             <div className="mt-4 flex justify-center">
+             <div className="mt-4 flex flex-col items-center gap-2">
+                <ThemeToggle />
                 <Button 
                     variant="ghost" 
                     size="icon" 

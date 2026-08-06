@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true
-  },
   typescript: {
     ignoreBuildErrors: true
   },
@@ -14,9 +11,6 @@ const nextConfig: NextConfig = {
         hostname: '*.public.blob.vercel-storage.com', // Permite Vercel Blob
       },
     ],
-  },
-  serverActions: {
-    bodySizeLimit: '50mb',
   },
   experimental: {
     serverActions: {

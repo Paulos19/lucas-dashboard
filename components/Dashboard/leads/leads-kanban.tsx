@@ -265,7 +265,7 @@ function DraggableKanbanCard({ lead }: { lead: Lead }) {
 
 function KanbanCard({ lead, isOverlay }: { lead: Lead, isOverlay?: boolean }) {
   return (
-    <Card className={`shadow-sm transition-all group border-l-4 border-l-transparent hover:border-l-blue-500 ${isOverlay ? 'cursor-grabbing' : 'cursor-grab hover:shadow-md'}`}>
+    <Card className={`transition-all group ${isOverlay ? 'cursor-grabbing shadow-md' : 'cursor-grab hover:shadow-md'}`}>
       <CardContent className="p-3 space-y-2">
         <div className="flex justify-between items-start">
           <div className="space-y-1">

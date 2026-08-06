@@ -24,7 +24,7 @@ export default async function DashboardLayout({
 
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Header Mobile e Título */}
-        <header className="flex h-16 items-center gap-4 border-b bg-background px-6 shadow-sm md:hidden">
+        <header className="flex h-16 items-center gap-4 border-b bg-background px-6 shadow-xs md:hidden">
           <MobileSidebar />
           <span className="font-semibold text-lg">Menu</span>
         </header>

@@ -55,7 +55,7 @@ export default async function AdminLeadsPage(props: Props) {
   return (
     <div className="h-[calc(100vh-80px)] flex flex-col space-y-4">
       {/* Header com Busca */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0 bg-white dark:bg-slate-900 p-4 rounded-lg border shadow-sm">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0 bg-white dark:bg-slate-900 p-4 rounded-lg border shadow-xs">
          <div>
             <h1 className="text-2xl font-bold tracking-tight">Gestão de Leads</h1>
             <p className="text-sm text-muted-foreground">
@@ -103,11 +103,11 @@ export default async function AdminLeadsPage(props: Props) {
                       <div className="flex items-center gap-2">
                           <Avatar className="h-6 w-6 ring-1 ring-slate-200 dark:ring-slate-700">
                               <AvatarFallback className="text-[10px] bg-indigo-50 text-indigo-600 font-bold">
-                                  {lead.user.name?.charAt(0) || 'U'}
+                                  {(lead.user?.name || lead.corretorNome || 'U').charAt(0).toUpperCase()}
                               </AvatarFallback>
                           </Avatar>
-                          <span className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate max-w-[120px]">
-                            {lead.user.name}
+                          <span className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate max-w-[120px]" title={lead.user?.name || lead.corretorNome || 'Sem corretor'}>
+                            {lead.user?.name || lead.corretorNome || 'Sem corretor'}
                           </span>
                       </div>
                     </TableCell>

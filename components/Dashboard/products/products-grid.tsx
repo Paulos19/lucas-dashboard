@@ -57,8 +57,8 @@ export function ProductsGrid({ products }: { products: any[] }) {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filtered.map((prod) => (
-                <Card key={prod.id} className="group hover:shadow-lg transition-all duration-300 border-t-4 border-t-red-500 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm overflow-hidden">
-                    <CardHeader className="pb-3 bg-gradient-to-b from-red-50/50 to-transparent dark:from-red-900/10 pt-5 relative">
+                <Card key={prod.id} className="group hover:shadow-lg transition-all duration-300 overflow-hidden">
+                    <CardHeader className="pb-3 pt-5 relative">
                         <div className="flex justify-between items-start mb-2">
                             {/* Grupo de Badges */}
                             <div className="flex flex-wrap gap-2">
@@ -127,7 +127,7 @@ export function ProductsGrid({ products }: { products: any[] }) {
                         </div>
                     </CardContent>
 
-                    <CardFooter className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/30">
+                    <CardFooter className="pt-4 border-t flex justify-between items-center">
                         <div className="text-xs text-muted-foreground">
                             Prêmio Mensal
                         </div>

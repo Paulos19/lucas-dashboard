@@ -142,7 +142,7 @@ export default async function DashboardPage() {
         <OverviewChart data={chartData} />
 
         {/* Card de Próximo Compromisso / Destaque */}
-        <Card className="col-span-4 lg:col-span-4 xl:col-span-2 border-none shadow-md bg-gradient-to-br from-slate-900 to-slate-800 text-white relative overflow-hidden">
+        <Card className="col-span-4 lg:col-span-4 xl:col-span-2 border-none shadow-md bg-linear-to-br from-slate-900 to-slate-800 text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-10">
             <Clock className="w-32 h-32" />
           </div>
@@ -183,7 +183,7 @@ export default async function DashboardPage() {
         </Card>
 
         {/* Lista de Leads Recentes */}
-        <Card className="col-span-4 lg:col-span-7 border-none shadow-md bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
+        <Card className="col-span-4 lg:col-span-7 border-none shadow-md bg-white/50 dark:bg-slate-900/50 backdrop-blur-xs">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className='text-white'>Leads Recentes</CardTitle>
@@ -255,7 +255,7 @@ function KpiCard({ title, value, icon: Icon, trend, color }: any) {
     }[color as string] || "text-slate-600 bg-slate-50";
 
     return (
-        <Card className="border-none shadow-sm bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm hover:shadow-md transition-all duration-300">
+        <Card className="border-none shadow-xs bg-white/60 dark:bg-slate-900/60 backdrop-blur-xs hover:shadow-md transition-all duration-300">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                     {title}

@@ -77,9 +77,9 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
       </div>
 
       {/* Cabeçalho do Lead */}
-      <div className="flex flex-col md:flex-row gap-6 items-start bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div className="flex flex-col md:flex-row gap-6 items-start bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
         <Avatar className="h-24 w-24 border-4 border-slate-50 dark:border-slate-800">
-            <AvatarFallback className="text-3xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold">
+            <AvatarFallback className="text-3xl bg-linear-to-br from-blue-500 to-indigo-600 text-white font-bold">
                 {lead.name.substring(0, 2).toUpperCase()}
             </AvatarFallback>
         </Avatar>
@@ -114,7 +114,7 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
         </div>
 
         <div className="w-full md:w-auto flex flex-col gap-2">
-            <Button className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white shadow-sm" onClick={() => window.open(`https://wa.me/${lead.contato}`, '_blank')}>
+            <Button className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white shadow-xs" onClick={() => window.open(`https://wa.me/${lead.contato}`, '_blank')}>
                 <MessageSquare className="h-4 w-4" /> Conversar no WhatsApp
             </Button>
         </div>
@@ -125,7 +125,7 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
         
         {/* Coluna Esquerda - Informações Rápidas */}
         <div className="space-y-6">
-            <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+            <Card className="shadow-sm">
                 <CardHeader>
                     <CardTitle className="text-base">Detalhes do Cliente</CardTitle>
                 </CardHeader>
@@ -146,6 +146,32 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
                         <span className="text-muted-foreground block mb-1 text-xs uppercase tracking-wider">Atividade Principal</span>
                         <p className="font-medium text-slate-900 dark:text-slate-100">{lead.atividadePrincipal || "-"}</p>
                     </div>
+
+                    <div className="h-px bg-slate-100 dark:bg-slate-800" />
+                    <div>
+                        <span className="text-muted-foreground block mb-1 text-xs uppercase tracking-wider">Origem / Campanha</span>
+                        <p className="font-medium text-slate-900 dark:text-slate-100">{lead.campanha || lead.origemLead || "-"}</p>
+                    </div>
+
+                    {(lead.ramo || lead.fase) && (
+                        <>
+                            <div className="h-px bg-slate-100 dark:bg-slate-800" />
+                            <div className="grid grid-cols-2 gap-4">
+                                {lead.ramo && (
+                                    <div>
+                                        <span className="text-muted-foreground block mb-1 text-xs uppercase tracking-wider">Ramo</span>
+                                        <Badge variant="outline" className="text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900">{lead.ramo}</Badge>
+                                    </div>
+                                )}
+                                {lead.fase && (
+                                    <div>
+                                        <span className="text-muted-foreground block mb-1 text-xs uppercase tracking-wider">Fase (Planilha)</span>
+                                        <Badge variant="outline" className="text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900">{lead.fase}</Badge>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
                     {/* Campos de Pós-Venda se existirem */}
                     {lead.numeroApolice && (
                         <>
@@ -195,7 +221,7 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
                 </TabsList>
 
                 <TabsContent value="resumo" className="mt-0">
-                    <Card className="border-none shadow-sm bg-blue-50/50 dark:bg-blue-900/10">
+                    <Card className="shadow-sm border border-blue-100 dark:border-blue-900/50">
                         <CardHeader>
                             <CardTitle className="text-blue-900 dark:text-blue-100 flex items-center gap-2 text-lg">
                                 <FileText className="h-5 w-5" /> Resumo da Conversa
@@ -209,7 +235,7 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
                 </TabsContent>
 
                 <TabsContent value="historico" className="mt-0">
-                    <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+                    <Card className="shadow-sm">
                         <CardContent className="pt-6">
                             <div className="text-center py-10 text-muted-foreground">
                                 <MessageSquare className="h-10 w-10 mx-auto mb-3 opacity-20" />
@@ -229,17 +255,34 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
                 {/* ---------------------------------------- */}
 
                 <TabsContent value="dados" className="mt-0">
-                    <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+                    <Card className="shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-base">Dados Dinâmicos</CardTitle>
-                            <CardDescription>Respostas capturadas durante a qualificação.</CardDescription>
+                            <CardTitle className="text-base">Todos os Dados Coletados</CardTitle>
+                            <CardDescription>Informações detalhadas oriundas de planilhas ou chatbots.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <div className="bg-slate-950 text-slate-50 p-4 rounded-lg overflow-x-auto">
-                                <pre className="text-xs font-mono">
-                                    {JSON.stringify(lead.dynamicData || {}, null, 2)}
-                                </pre>
-                            </div>
+                            {lead.dynamicData && Object.keys(lead.dynamicData).length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {Object.entries(lead.dynamicData).map(([key, value]) => {
+                                        // Limpa o cabeçalho sujo da planilha (pegando só a primeira linha do título)
+                                        const cleanKey = key.split('\n')[0].trim();
+                                        return (
+                                            <div key={key} className="bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
+                                                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                                                    {cleanKey}
+                                                </span>
+                                                <p className="text-sm font-medium text-slate-900 dark:text-slate-100 break-words">
+                                                    {value !== null && value !== undefined && value !== '' ? String(value) : '-'}
+                                                </p>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="text-center py-10 text-muted-foreground border border-dashed rounded-lg">
+                                    <p className="text-sm">Nenhum dado dinâmico coletado.</p>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </TabsContent>

@@ -155,7 +155,7 @@ export function SettingsView({ user }: SettingsViewProps) {
                 {/* Avatar Section */}
                 <div className="flex items-center gap-6">
                     <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
-                        <Avatar className="h-24 w-24 border-4 border-slate-100 dark:border-slate-800 shadow-sm group-hover:opacity-80 transition-opacity">
+                        <Avatar className="h-24 w-24 border-4 border-slate-100 dark:border-slate-800 shadow-xs group-hover:opacity-80 transition-opacity">
                             <AvatarImage src={profileData.image} className="object-cover" />
                             <AvatarFallback className="text-2xl bg-blue-100 text-blue-700 font-bold">
                                 {profileData.name.substring(0, 2).toUpperCase()}
@@ -237,7 +237,7 @@ export function SettingsView({ user }: SettingsViewProps) {
                 </div>
 
               </CardContent>
-              <CardFooter className="border-t px-6 py-4 bg-slate-50 dark:bg-slate-900/50">
+              <CardFooter className="border-t px-6 py-4">
                 <Button type="submit" disabled={loadingProfile || uploading} className="ml-auto bg-blue-600 hover:bg-blue-700 text-white">
                     {loadingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Salvar Alterações
@@ -296,7 +296,7 @@ export function SettingsView({ user }: SettingsViewProps) {
                     </div>
                 </div>
               </CardContent>
-              <CardFooter className="border-t px-6 py-4 bg-slate-50 dark:bg-slate-900/50">
+              <CardFooter className="border-t px-6 py-4">
                 <Button type="submit" disabled={loadingPassword} variant="destructive" className="ml-auto">
                     {loadingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Atualizar Senha

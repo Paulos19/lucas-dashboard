@@ -128,7 +128,7 @@ export function AgendaView({ agendamentos, slots }: AgendaViewProps) {
             <aside className="lg:col-span-4 xl:col-span-4 space-y-5">
 
                 {/* CALENDÁRIO */}
-                <Card className="overflow-hidden border-0 shadow-xl bg-white dark:bg-slate-900 ring-1 ring-slate-200/80 dark:ring-slate-700/60">
+                <Card className="overflow-hidden shadow-sm">
                     <CardContent className="p-3 pb-4">
                         <Calendar
                             mode="single"
@@ -157,7 +157,7 @@ export function AgendaView({ agendamentos, slots }: AgendaViewProps) {
                 </Card>
 
                 {/* LEGENDA */}
-                <Card className="border-0 shadow-md bg-white dark:bg-slate-900 ring-1 ring-slate-200/80 dark:ring-slate-700/60">
+                <Card className="shadow-sm">
                     <CardContent className="px-5 py-4">
                         <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">
                             Legenda
@@ -180,7 +180,7 @@ export function AgendaView({ agendamentos, slots }: AgendaViewProps) {
                 </Card>
 
                 {/* RESUMO DO DIA */}
-                <Card className="border-0 shadow-md bg-white dark:bg-slate-900 ring-1 ring-slate-200/80 dark:ring-slate-700/60">
+                <Card className="shadow-sm">
                     <CardContent className="px-5 py-4">
                         <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">
                             {date ? format(date, "dd 'de' MMMM", { locale: ptBR }) : 'Resumo'}

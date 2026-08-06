@@ -6,6 +6,8 @@ import Link from 'next/link';
 
 const prisma = new PrismaClient();
 
+import { ImportLeadsButton } from '@/components/ImportLeadsButton';
+
 export default async function AdminPage() {
   // Busca dados em paralelo para melhor performance
   const [totalUsers, totalLeads, recentLeads, leadsByStatus] = await Promise.all([
@@ -33,11 +35,14 @@ export default async function AdminPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Painel Admin</h1>
-        <p className="text-muted-foreground mt-2">
-          Visão geral do sistema, usuários e performance.
-        </p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Painel Admin</h1>
+          <p className="text-muted-foreground mt-2">
+            Visão geral do sistema, usuários e performance.
+          </p>
+        </div>
+        <ImportLeadsButton />
       </div>
 
       {/* KPI Cards */}
@@ -106,7 +111,7 @@ export default async function AdminPage() {
                   <div className="ml-4 space-y-1">
                     <p className="text-sm font-medium leading-none">{lead.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      Corretor: <span className="text-primary">{lead.user.name}</span>
+                      Corretor: <span className="text-primary">{lead.user?.name || lead.corretorNome || 'Sem corretor'}</span>
                     </p>
                   </div>
                   <div className="ml-auto font-medium text-xs text-slate-500">
