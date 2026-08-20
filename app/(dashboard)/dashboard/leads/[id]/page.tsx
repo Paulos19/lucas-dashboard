@@ -1,9 +1,7 @@
 import { auth } from '@/lib/auth';
 import { redirect, notFound } from 'next/navigation';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { LeadDetailsView } from '@/components/Dashboard/leads/lead-details-view';
-
-const prisma = new PrismaClient();
 
 export const dynamic = 'force-dynamic';
 
@@ -17,16 +15,22 @@ export default async function LeadPage({ params }: PageProps) {
 
   const { id } = await params;
 
-  // Busca o Lead com anexos
-  const lead = await prisma.lead.findUnique({
-    where: {
-      id,
-      userId: session.user.id
-    },
+  const whereClause: any = { id };
+  // Se não for admin, só pode ver seus próprios leads
+  if (session.user.role !== 'ADMIN') {
+    whereClause.userId = session.user.id;
+  }
+
+  // Busca o Lead com todas as relações
+  const lead = await prisma.lead.findFirst({
+    where: whereClause,
     include: {
+      user: {
+        select: { id: true, name: true, email: true, phone: true }
+      },
       interestedInProduct: true,
       agendamento: true,
-      attachments: {          // <--- ADICIONADO
+      attachments: {
         orderBy: { createdAt: 'desc' }
       }
     }
@@ -37,8 +41,8 @@ export default async function LeadPage({ params }: PageProps) {
   }
 
   return (
-    <div className="container mx-auto py-8 max-w-5xl">
+    <div className="container mx-auto py-8 max-w-6xl">
       <LeadDetailsView lead={lead} />
     </div>
   );
-}
+}

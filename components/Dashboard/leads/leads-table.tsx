@@ -51,6 +51,13 @@ export type Lead = {
   updatedAt: Date;
   segmentacao?: string | null;
   interestedInProduct?: { name: string } | null;
+  prioridade?: string | null;
+  ramo?: string | null;
+  campanha?: string | null;
+  agencia?: string | null;
+  dataRenovacao?: Date | string | null;
+  telefoneFixo?: string | null;
+  corretorNome?: string | null;
 };
 
 // Definição das Colunas
@@ -74,20 +81,43 @@ export const columns: ColumnDef<Lead>[] = [
         <span className="font-medium text-slate-900 dark:text-slate-100">
           {row.getValue('name')}
         </span>
-        <span className="text-xs text-muted-foreground md:hidden">
-          {row.original.contato}
-        </span>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-xs text-muted-foreground">
+            {row.original.contato}
+          </span>
+          {row.original.prioridade && (
+            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+              row.original.prioridade === '1' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+              row.original.prioridade === '6' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+              'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+            }`}>
+              Prio {row.original.prioridade}
+            </span>
+          )}
+        </div>
       </div>
     ),
   },
   {
-    accessorKey: 'contato',
-    header: 'Contato',
-    cell: ({ row }) => (
-      <div className="font-mono text-xs text-muted-foreground">
-        {row.getValue('contato')}
-      </div>
-    ),
+    accessorKey: 'ramo',
+    header: 'Ramo / Produto',
+    cell: ({ row }) => {
+      const ramo = row.original.ramo;
+      const product = row.original.interestedInProduct?.name;
+      const display = ramo || product || '-';
+      return (
+        <div className="flex flex-col">
+          <Badge variant="outline" className="w-fit text-xs font-normal bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700">
+            {display}
+          </Badge>
+          {row.original.campanha && (
+            <span className="text-[10px] text-muted-foreground truncate max-w-[140px] mt-0.5" title={row.original.campanha}>
+              {row.original.campanha}
+            </span>
+          )}
+        </div>
+      );
+    },
   },
   {
     accessorKey: 'status',
@@ -113,16 +143,15 @@ export const columns: ColumnDef<Lead>[] = [
     },
   },
   {
-    accessorKey: 'interestedInProduct',
-    header: 'Interesse',
+    accessorKey: 'dataRenovacao',
+    header: 'Renovação',
     cell: ({ row }) => {
-      const product = row.original.interestedInProduct;
-      return product ? (
-        <span className="text-sm truncate max-w-[150px] inline-block" title={product.name}>
-          {product.name}
+      const data = row.original.dataRenovacao;
+      if (!data) return <span className="text-muted-foreground text-xs italic">-</span>;
+      return (
+        <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+          {new Date(data).toLocaleDateString('pt-BR')}
         </span>
-      ) : (
-        <span className="text-muted-foreground text-xs italic">-</span>
       );
     },
   },

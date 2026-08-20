@@ -1,15 +1,13 @@
-// app/api/users/by-phone/[phone]/route.ts
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { normalizePhoneNumber } from '@/lib/phoneUtils';
 
-const prisma = new PrismaClient();
 const N8N_API_KEY = process.env.N8N_INTERNAL_API_KEY; 
 
 type Context = {
-  params: {
+  params: Promise<{
     phone: string;
-  };
+  }>;
 };
 
 export async function GET(request: Request, context: Context) {
@@ -19,7 +17,7 @@ export async function GET(request: Request, context: Context) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
   }
 
-  const { phone } = context.params;
+  const { phone } = await context.params;
 
   if (!phone) {
     return NextResponse.json({ error: 'Telefone obrigatório' }, { status: 400 });

@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-
-const prisma = new PrismaClient();
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -15,11 +13,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Nenhum lead fornecido' }, { status: 400 });
     }
 
-    // Criamos uma transação para garantir que ou salva tudo ou não salva nada (opcional, mas recomendado)
-    // Para performance em massa, createMany é o ideal.
-    
-    // Filtra leads sem contato (obrigatório pelo Schema)
-    const validLeads = leads.filter((l: any) => l.contato && l.contato.length >= 8);
+    const userRole = session.user.role;
+    const currentUserName = (session.user.name || '').trim().toLowerCase();
+
+    // Regra: Se NÃO for admin, não pode conter nome de outros corretores
+    if (userRole !== 'ADMIN') {
+      const foreignBrokers = new Set<string>();
+
+      for (const l of leads) {
+        const cNome = String(l.corretorNome || '').trim();
+        if (cNome && cNome.toLowerCase() !== currentUserName) {
+          foreignBrokers.add(cNome);
+        }
+      }
+
+      if (foreignBrokers.size > 0) {
+        const brokerList = Array.from(foreignBrokers).slice(0, 3).join(', ');
+        return NextResponse.json({
+          error: `Você não tem permissão para importar planilhas com nomes de outros corretores (${brokerList}). Como corretor, você só pode adicionar leads próprios ou sem identificação de terceiros.`
+        }, { status: 403 });
+      }
+    }
+
+    // Filtra leads com telefone válido
+    const validLeads = leads.filter((l: any) => l.contato && String(l.contato).length >= 8);
 
     const count = await prisma.lead.createMany({
       data: validLeads.map((lead: any) => ({
@@ -27,13 +44,21 @@ export async function POST(request: Request) {
         name: lead.name,
         contato: lead.contato,
         status: lead.status || 'ENTRANTE',
-        numeroApolice: lead.numeroApolice,
-        faturamentoEstimado: lead.faturamentoEstimado,
-        origemLead: 'IMPORTACAO_XLSX',
-        dynamicData: lead.dynamicData || {}, // Salva o resto dos dados aqui
+        numeroApolice: lead.numeroApolice || null,
+        faturamentoEstimado: lead.faturamentoEstimado || null,
+        prioridade: lead.prioridade ? String(lead.prioridade) : null,
+        ramo: lead.ramo || null,
+        campanha: lead.campanha || null,
+        fase: lead.fase || null,
+        telefoneFixo: lead.telefoneFixo || null,
+        agencia: lead.agencia || null,
+        corretorNome: session.user?.name || lead.corretorNome || null,
+        dataRenovacao: lead.dataRenovacao ? new Date(lead.dataRenovacao) : null,
+        origemLead: lead.origemLead || 'IMPORTACAO_XLSX',
+        dynamicData: lead.dynamicData || {},
         updatedAt: new Date(),
       })),
-      skipDuplicates: true, // Pula telefones que já existem (evita erro 500)
+      skipDuplicates: true, // Pula telefones que já existem
     });
 
     return NextResponse.json({ 
@@ -47,4 +72,4 @@ export async function POST(request: Request) {
     console.error("Erro na importação:", error);
     return NextResponse.json({ error: 'Erro interno ao importar leads' }, { status: 500 });
   }
-}
+}

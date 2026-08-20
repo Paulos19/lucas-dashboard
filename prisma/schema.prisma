@@ -87,6 +87,9 @@ model Lead {
   campanha      String?
   ramo          String?
   fase          String?
+  prioridade    String? // Nível de prioridade da renovação (ex: "1", "6", "20", "40")
+  telefoneFixo  String? // Telefone fixo / secundário (ex: "(67) 3352-9765")
+  agencia       String? // Agência bancária (ex: "AGÊNCIA 73 - CAMPO GRANDE-CENTRO")
 
   // Dados Dinâmicos (Respostas das perguntas do bot)
   dynamicData Json?

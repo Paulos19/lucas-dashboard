@@ -1,38 +1,29 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
-const N8N_INTERNAL_API_KEY = process.env.N8N_INTERNAL_API_KEY;
+const N8N_API_KEY = process.env.N8N_INTERNAL_API_KEY;
 
 export async function GET(request: Request) {
   // 1. Validação de Segurança
   const apiKey = request.headers.get('x-api-key');
-  if (apiKey !== N8N_INTERNAL_API_KEY || !N8N_INTERNAL_API_KEY) {
+  if (apiKey !== N8N_API_KEY) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
   }
 
   try {
-    // 2. Busca Leads "Virgens" (Nunca contatados e Status Entrante)
-    // Limite de 20 por vez para não bloquear o WhatsApp por spam
+    // 2. Busca leads não contatados (limite de 10 por execução para evitar bloqueios de WhatsApp)
     const leads = await prisma.lead.findMany({
       where: {
-        status: 'ENTRANTE',
         firstContactSent: false,
+        status: 'ENTRANTE',
+        contato: { not: '' }
       },
-      take: 20,
       include: {
-        user: {
-          select: {
-            welcomeMessage: true, // Mensagem de boas vindas do corretor
-            phone: true // Telefone da instância (importante para o n8n saber quem envia)
-          }
-        },
-        interestedInProduct: {
-            select: {
-                name: true // Nome do produto para contexto inicial (opcional)
-            }
-        }
-      }
+        user: true,
+        interestedInProduct: true
+      },
+      take: 10,
+      orderBy: { createdAt: 'asc' }
     });
 
     if (leads.length === 0) {
@@ -55,9 +46,9 @@ export async function GET(request: Request) {
       leadId: lead.id,
       phone: lead.contato, // Número do cliente
       leadName: lead.name,
-      instancePhone: lead.user.phone, // Número do corretor (instância)
+      instancePhone: lead.user?.phone || process.env.ADMIN_PHONE || '', // Número do corretor (instância)
       // Mensagem padrão se o corretor não configurou uma
-      welcomeMessage: lead.user.welcomeMessage || `Olá ${lead.name}, tudo bem? Aqui é o Lucas, assistente virtual da CSB Seguros. Vi que você tem interesse no ${lead.interestedInProduct?.name || 'seguro residencial'}. Podemos conversar rapidinho?`
+      welcomeMessage: lead.user?.welcomeMessage || `Olá ${lead.name}, tudo bem? Aqui é o Lucas, assistente virtual da CSB Seguros. Vi que você tem interesse no ${lead.ramo || lead.interestedInProduct?.name || 'seguro'}. Podemos conversar rapidinho?`
     }));
 
     return NextResponse.json(responseData, { status: 200 });

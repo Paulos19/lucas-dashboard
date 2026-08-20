@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-
-const prisma = new PrismaClient();
 
 export async function PUT(request: Request) {
   const session = await auth();
@@ -11,13 +9,12 @@ export async function PUT(request: Request) {
   try {
     const { name, email, phone, creci, image } = await request.json();
 
-    // Validação básica de unicidade se e-mail/telefone mudarem
-    // (Em produção, faríamos uma checagem mais robusta aqui)
+    const trimmedName = name ? String(name).trim() : undefined;
 
     const updatedUser = await prisma.user.update({
       where: { id: session.user.id },
       data: {
-        name,
+        name: trimmedName,
         email,
         phone,
         creci,
@@ -25,9 +22,25 @@ export async function PUT(request: Request) {
       }
     });
 
+    // Se o nome foi atualizado, vincula eventuais leads em standby com esse nome
+    if (trimmedName) {
+      await prisma.lead.updateMany({
+        where: {
+          userId: null,
+          corretorNome: {
+            equals: trimmedName,
+            mode: 'insensitive'
+          }
+        },
+        data: {
+          userId: session.user.id
+        }
+      });
+    }
+
     return NextResponse.json(updatedUser);
   } catch (error) {
-    console.error(error);
+    console.error("Erro ao atualizar perfil:", error);
     return NextResponse.json({ error: 'Erro ao atualizar perfil' }, { status: 500 });
   }
-}
+}

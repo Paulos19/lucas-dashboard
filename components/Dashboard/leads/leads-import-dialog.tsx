@@ -20,6 +20,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Lock } from 'lucide-react';
 
+import { useSession } from 'next-auth/react';
+
 const STATUS_MAP: Record<string, string> = {
   'ganha': 'VENDA_REALIZADA',
   'fechada': 'VENDA_REALIZADA',
@@ -33,6 +35,7 @@ const STATUS_MAP: Record<string, string> = {
 };
 
 export function LeadsImportDialog() {
+  const { data: session } = useSession();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -40,6 +43,7 @@ export function LeadsImportDialog() {
   const [showPasswordInput, setShowPasswordInput] = useState(false);
   const [parsedData, setParsedData] = useState<any[]>([]);
   const [stats, setStats] = useState({ total: 0, valid: 0, ignored: 0 });
+  const [foreignBrokerError, setForeignBrokerError] = useState<string | null>(null);
   const router = useRouter();
 
   const normalizeStr = (str: string) => {
@@ -160,13 +164,12 @@ export function LeadsImportDialog() {
 
   const processExcelData = (rows: any[][], headerMap: Record<string, number>) => {
     const formatted = rows.map((row) => {
-      // Usa a nova função findValue que busca pelo índice da coluna correta
       const celular = findValue(row, headerMap, ['Telefone Celular', 'Celular', 'Whatsapp']);
-      const fixo = findValue(row, headerMap, ['Telefone', 'Fixo', 'Tel Fixo']);
+      const fixo = findValue(row, headerMap, ['Telefone', 'Telefone Fixo', 'Fixo', 'Tel Fixo']);
       const rawPhone = celular || fixo;
       const finalPhone = cleanPhone(rawPhone);
 
-      const nome = findValue(row, headerMap, ['Nome do Cliente: Nome do Cliente', 'Nome do Cliente', 'Nome', 'Segurado']) || 'Lead Importado';
+      const nome = findValue(row, headerMap, ['Cliente', 'Nome do Cliente: Nome do Cliente', 'Nome do Cliente', 'Nome', 'Segurado']) || 'Lead Importado';
 
       const faseRaw = findValue(row, headerMap, ['Fase', 'Status', 'Etapa', 'Tipo de Oportunidade']);
       const faseNormalized = normalizeStr(faseRaw);
@@ -180,6 +183,12 @@ export function LeadsImportDialog() {
 
       const apolice = findValue(row, headerMap, ['Apólice', 'Numero da Apolice']);
       const premio = findValue(row, headerMap, ['Prêmio Estimado', 'Valor', 'Premio']);
+      const prioridade = findValue(row, headerMap, ['Prioridade']);
+      const ramo = findValue(row, headerMap, ['Ramo']);
+      const campanha = findValue(row, headerMap, ['Campanha']);
+      const agencia = findValue(row, headerMap, ['Agência', 'Agencia']);
+      const corretorNome = findValue(row, headerMap, ['Corretor', 'Nome do Corretor']);
+      const encerramentoRaw = findValue(row, headerMap, ['Data de Encerramento', 'Data Renovacao', 'Data Renovação', 'Vencimento']);
 
       // Cria objeto dynamicData com base no headerMap para salvar tudo
       const dynamicData: Record<string, any> = { importSource: 'XLSX', originalStatus: faseRaw };
@@ -193,12 +202,44 @@ export function LeadsImportDialog() {
         status: systemStatus,
         numeroApolice: apolice ? String(apolice) : undefined,
         faturamentoEstimado: premio ? String(premio) : undefined,
+        prioridade: prioridade ? String(prioridade) : undefined,
+        ramo: ramo ? String(ramo) : undefined,
+        campanha: campanha ? String(campanha) : undefined,
+        fase: faseRaw ? String(faseRaw) : undefined,
+        telefoneFixo: fixo && String(fixo).trim() !== '00' ? String(fixo).trim() : undefined,
+        agencia: agencia ? String(agencia) : undefined,
+        corretorNome: corretorNome ? String(corretorNome) : undefined,
+        dataRenovacao: encerramentoRaw ? String(encerramentoRaw) : undefined,
         dynamicData: dynamicData
       };
     });
 
     // Filtra linhas que tenham pelo menos um nome válido
     const valid = formatted.filter(l => l.name && l.name !== 'Lead Importado');
+
+    // Validação de Corretores de Terceiros (se não for ADMIN)
+    const isUserAdmin = session?.user?.role === 'ADMIN';
+    const currentUserName = (session?.user?.name || '').trim().toLowerCase();
+
+    if (!isUserAdmin) {
+      const foreignBrokers = new Set<string>();
+      for (const item of valid) {
+        const cNome = String(item.corretorNome || '').trim();
+        if (cNome && cNome.toLowerCase() !== currentUserName) {
+          foreignBrokers.add(cNome);
+        }
+      }
+      if (foreignBrokers.size > 0) {
+        const list = Array.from(foreignBrokers).slice(0, 3).join(', ');
+        const errorMsg = `Esta planilha contém leads atribuídos a outros corretores (${list}). Como usuário corretor, você só pode importar leads próprios ou sem atribuição de terceiros.`;
+        setForeignBrokerError(errorMsg);
+        toast.error(`Bloqueio: A planilha contém leads de outros corretores (${list}).`);
+      } else {
+        setForeignBrokerError(null);
+      }
+    } else {
+      setForeignBrokerError(null);
+    }
 
     setParsedData(valid);
     setStats({
@@ -217,6 +258,11 @@ export function LeadsImportDialog() {
   const handleImport = async () => {
     if (parsedData.length === 0) return;
 
+    if (foreignBrokerError) {
+      toast.error(foreignBrokerError);
+      return;
+    }
+
     setIsLoading(true);
     try {
       // Envia em lotes de 100 para não estourar o limite da API (Body size)
@@ -226,11 +272,17 @@ export function LeadsImportDialog() {
       for (let i = 0; i < parsedData.length; i += BATCH_SIZE) {
         const batch = parsedData.slice(i, i + BATCH_SIZE);
 
-        await fetch('/api/leads/bulk', {
+        const res = await fetch('/api/leads/bulk', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ leads: batch }),
         });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Erro ao importar leads');
+        }
+
         importedCount += batch.length;
         toast.loading(`Importando... ${importedCount}/${parsedData.length}`);
       }
@@ -240,11 +292,13 @@ export function LeadsImportDialog() {
       setIsOpen(false);
       setParsedData([]);
       setFileName(null);
+      setForeignBrokerError(null);
       router.refresh();
       window.location.reload();
 
-    } catch (error) {
-      toast.error('Erro durante a importação.');
+    } catch (error: any) {
+      toast.dismiss();
+      toast.error(error.message || 'Erro durante a importação.');
     } finally {
       setIsLoading(false);
     }
@@ -318,15 +372,27 @@ export function LeadsImportDialog() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg flex items-center gap-3 border border-green-100 dark:border-green-900/50">
-                <CheckCircle className="h-8 w-8 text-green-600 shrink-0" />
-                <div>
-                  <p className="font-semibold text-green-800 dark:text-green-300">Arquivo Válido!</p>
-                  <p className="text-sm text-green-700/80 dark:text-green-400/80 mt-1">
-                    Identificamos <b>{stats.valid}</b> leads com telefone.
-                  </p>
+              {foreignBrokerError ? (
+                <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg flex items-start gap-3 border border-red-200 dark:border-red-800">
+                  <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-red-800 dark:text-red-300 text-sm">Bloqueio de Importação</p>
+                    <p className="text-xs text-red-700/90 dark:text-red-400 mt-1">
+                      {foreignBrokerError}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg flex items-center gap-3 border border-green-100 dark:border-green-900/50">
+                  <CheckCircle className="h-8 w-8 text-green-600 shrink-0" />
+                  <div>
+                    <p className="font-semibold text-green-800 dark:text-green-300">Arquivo Válido!</p>
+                    <p className="text-sm text-green-700/80 dark:text-green-400/80 mt-1">
+                      Identificamos <b>{stats.valid}</b> leads com telefone.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {stats.ignored > 0 && (
                 <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg flex items-center gap-2 text-xs text-amber-800 dark:text-amber-300 border border-amber-100 dark:border-amber-900/50">
@@ -337,9 +403,9 @@ export function LeadsImportDialog() {
 
               <div className="text-xs text-muted-foreground bg-slate-50 dark:bg-slate-900 p-3 rounded border">
                 <p className="font-medium mb-1">Exemplo do 1º Lead:</p>
-                <p>Nome: {parsedData[0].name}</p>
-                <p>Tel: {parsedData[0].contato}</p>
-                <p>Status: {parsedData[0].status}</p>
+                <p>Nome: {parsedData[0]?.name}</p>
+                <p>Tel: {parsedData[0]?.contato}</p>
+                <p>Status: {parsedData[0]?.status}</p>
               </div>
             </div>
           )}
@@ -347,14 +413,14 @@ export function LeadsImportDialog() {
 
         <DialogFooter className="sm:justify-between flex-row items-center gap-2">
           {parsedData.length > 0 ? (
-            <Button variant="ghost" onClick={() => { setParsedData([]); setFileName(null); }}>
+            <Button variant="ghost" onClick={() => { setParsedData([]); setFileName(null); setForeignBrokerError(null); }}>
               Cancelar
             </Button>
           ) : <div />}
 
           <Button
             onClick={handleImport}
-            disabled={parsedData.length === 0 || isLoading}
+            disabled={parsedData.length === 0 || isLoading || !!foreignBrokerError}
             className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
           >
             {isLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
@@ -364,4 +430,4 @@ export function LeadsImportDialog() {
       </DialogContent>
     </Dialog>
   );
-}
+}

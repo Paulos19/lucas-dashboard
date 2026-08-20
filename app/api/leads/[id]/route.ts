@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-
-const prisma = new PrismaClient();
 
 // DELETE: Remove um lead
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> } // Next.js 15: params é uma Promise
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
@@ -15,15 +13,18 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    await prisma.lead.delete({
-      where: { 
-        id,
-        userId: session.user.id // Garante que só deleta leads do próprio usuário
-      }
+    const whereClause: any = { id };
+    if (session.user.role !== 'ADMIN') {
+      whereClause.userId = session.user.id;
+    }
+
+    await prisma.lead.deleteMany({
+      where: whereClause
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error('Erro ao excluir lead:', error);
     return NextResponse.json({ error: 'Erro ao excluir lead' }, { status: 500 });
   }
 }
@@ -40,23 +41,43 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    // Filtramos apenas o que pode ser editado manualmente
-    const { name, contato, status, segmentacao, faturamentoEstimado } = body;
+    const { 
+      name, contato, status, segmentacao, faturamentoEstimado,
+      prioridade, ramo, campanha, fase, telefoneFixo, agencia,
+      corretorNome, dataRenovacao, numeroApolice
+    } = body;
+
+    const whereClause: any = { id };
+    if (session.user.role !== 'ADMIN') {
+      whereClause.userId = session.user.id;
+    }
 
     const updatedLead = await prisma.lead.update({
-      where: { id, userId: session.user.id },
+      where: { id },
       data: {
-        name,
-        contato,
-        status,
-        segmentacao,
-        faturamentoEstimado,
+        ...(name !== undefined && { name }),
+        ...(contato !== undefined && { contato }),
+        ...(status !== undefined && { status }),
+        ...(segmentacao !== undefined && { segmentacao }),
+        ...(faturamentoEstimado !== undefined && { faturamentoEstimado }),
+        ...(prioridade !== undefined && { prioridade }),
+        ...(ramo !== undefined && { ramo }),
+        ...(campanha !== undefined && { campanha }),
+        ...(fase !== undefined && { fase }),
+        ...(telefoneFixo !== undefined && { telefoneFixo }),
+        ...(agencia !== undefined && { agencia }),
+        ...(corretorNome !== undefined && { corretorNome }),
+        ...(numeroApolice !== undefined && { numeroApolice }),
+        ...(dataRenovacao !== undefined && { 
+          dataRenovacao: dataRenovacao ? new Date(dataRenovacao) : null 
+        }),
         updatedAt: new Date()
       }
     });
 
     return NextResponse.json(updatedLead);
   } catch (error) {
+    console.error('Erro ao atualizar lead:', error);
     return NextResponse.json({ error: 'Erro ao atualizar lead' }, { status: 500 });
   }
-}
+}

@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient, Role } from '@prisma/client'; // Importar Role
+import { Role } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { hash } from 'bcryptjs';
-
-const prisma = new PrismaClient();
 
 export async function POST(request: Request) {
   try {
@@ -12,6 +11,8 @@ export async function POST(request: Request) {
     if (!name || !email || !password || !phone) {
       return NextResponse.json({ error: 'Dados incompletos' }, { status: 400 });
     }
+
+    const trimmedName = name.trim();
 
     // Verifica se já existe usuário com este email ou telefone
     const exists = await prisma.user.findFirst({
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
 
     const user = await prisma.user.create({
       data: {
-        name,
+        name: trimmedName,
         email,
         password: hashedPassword,
         phone: cleanPhone,
@@ -41,21 +42,28 @@ export async function POST(request: Request) {
       },
     });
 
-    // Resgate de leads: vincula os leads importados que têm o mesmo nome
-    await prisma.lead.updateMany({
+    // Resgate de leads em standby da planilha do Admin:
+    // Vincula os leads que têm exatamente o mesmo nome do corretor registrado
+    const updateResult = await prisma.lead.updateMany({
       where: {
-        corretorNome: name,
-        userId: null
+        userId: null,
+        corretorNome: {
+          equals: trimmedName,
+          mode: 'insensitive'
+        }
       },
       data: {
         userId: user.id
       }
     });
 
+    console.log(`[Cadastro Corretor] '${trimmedName}' cadastrado com sucesso. ${updateResult.count} leads em standby vinculados.`);
+
     return NextResponse.json({ 
         success: true, 
         userId: user.id, 
-        role: user.role 
+        role: user.role,
+        linkedLeadsCount: updateResult.count
     }, { status: 201 });
 
   } catch (error) {
