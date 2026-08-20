@@ -473,13 +473,119 @@ USO DAS FERRAMENTAS (TOOLS):
 
 ---
 
-#### 6. Nó: `Code - Splitter de Mensagens Receptivas`
-* Separa a resposta da IA pelo delimitador `|||` e alimenta o loop batch.
+#### 6. Nó: `Code - Quebrador de Mensagens (Splitter Receptivo)`
+* **Tipo:** `n8n-nodes-base.code`
+* **Language:** `JavaScript`
+* **Código:**
+```javascript
+const rawOutput = $input.first().json.output || $input.first().json.text || '';
+const msgContext = $('Code - Extrair Dados da Mensagem').first().json;
 
-#### 7. Nó: `Loop Over Items` ➔ `Send Presence` ➔ `Wait (Digitando)` ➔ `Send Text` ➔ `Wait (Antiban)`
-* Envia cada balão fracionado para a Evolution API com a mesma naturalidade humana.
+// Quebra as respostas da IA pelo delimitador |||
+const messages = rawOutput
+  .split('|||')
+  .map(m => m.trim())
+  .filter(m => m.length > 0);
+
+// Cria um item por mensagem para o Loop Batch
+return messages.map((text, index) => ({
+  json: {
+    messageIndex: index + 1,
+    totalMessages: messages.length,
+    text: text,
+    phone: msgContext.phone,
+    instanceName: msgContext.instanceName,
+    remoteJid: msgContext.remoteJid
+  }
+}));
+```
+
+---
+
+### 🔄 Lógica de Loop Batch & Antiban (Workflow 2)
+
+```
+[Code: Splitter Receptivo] ──► [Loop Over Items (Batch Size: 1)]
+                                       │
+                                       ▼
+                       [Evolution API: Enviar Presença ("composing")]
+                                       │
+                                       ▼
+                       [Wait: Delay de Digitação Proporcional]
+                                       │
+                                       ▼
+                       [Evolution API: Enviar Texto]
+                                       │
+                                       ▼
+                       [Wait: Intervalo Entre Balões (3s a 5s)]
+                                       │
+                                       ▼
+                       (Conecta de volta ao Loop para próxima mensagem)
+                                       │
+                                       ▼ (Quando finalizado: Saída 'Done')
+                       [HTTP Request: Sincronizar Lead no Dashboard]
+```
+
+#### 7.1. Nó: `Loop Over Items (Receptivo)`
+* **Tipo:** `n8n-nodes-base.splitInBatches`
+* **Batch Size:** `1`
+
+#### 7.2. Nó: `Evolution API - Enviar Presença Receptiva`
+* **Tipo:** `n8n-nodes-base.httpRequest`
+* **Method:** `POST`
+* **URL:** `https://sua-evolution-api.com/chat/sendPresence/{{ $('Loop Over Items (Receptivo)').item.json.instanceName }}`
+* **Headers:**
+  * `apikey`: `SUA_EVOLUTION_API_KEY`
+  * `Content-Type`: `application/json`
+* **Body Parameters (JSON):**
+  ```json
+  {
+    "number": "={{ $('Loop Over Items (Receptivo)').item.json.phone }}",
+    "presence": "composing",
+    "delay": 2000
+  }
+  ```
+
+#### 7.3. Nó: `Wait - Digitação Proporcional Receptiva`
+* **Tipo:** `n8n-nodes-base.wait`
+* **Resume:** `After time interval`
+* **Unit:** `Seconds` (Segundos)
+* **Amount (Expressão):**
+  ```javascript
+  {{ Math.min(Math.max(Math.round((($('Loop Over Items (Receptivo)').item.json.text || '').length * 0.05)), 2), 5) }}
+  ```
+  *(Ou fixo `3` segundos).*
+
+#### 7.4. Nó: `Evolution API - Enviar Texto Receptivo`
+* **Tipo:** `n8n-nodes-base.httpRequest`
+* **Method:** `POST`
+* **URL:** `https://sua-evolution-api.com/message/sendText/{{ $('Loop Over Items (Receptivo)').item.json.instanceName }}`
+* **Headers:**
+  * `apikey`: `SUA_EVOLUTION_API_KEY`
+  * `Content-Type`: `application/json`
+* **Body Parameters (JSON):**
+  ```json
+  {
+    "number": "={{ $('Loop Over Items (Receptivo)').item.json.phone }}",
+    "text": "={{ $('Loop Over Items (Receptivo)').item.json.text }}",
+    "linkPreview": false
+  }
+  ```
+
+#### 7.5. Nó: `Wait - Intervalo Entre Balões Receptivo (Antiban)`
+* **Tipo:** `n8n-nodes-base.wait`
+* **Resume:** `After time interval`
+* **Unit:** `Seconds` (Segundos)
+* **Amount (Expressão):**
+  ```javascript
+  {{ Math.floor(Math.random() * 3) + 3 }}
+  ```
+  *(Gera entre 3 e 5 segundos de pausa entre cada mensagem). Conecte a saída deste nó de volta na entrada do nó `Loop Over Items (Receptivo)`.*
+
+---
 
 #### 8. Nó: `HTTP Request - Sincronizar Lead no Dashboard`
+* **Conectado na saída:** `Done` do nó `Loop Over Items (Receptivo)`
 * **Method:** `POST`
 * **URL:** `https://lucas-dashboard.vercel.app/api/leads`
 * **Headers:**
