@@ -70,44 +70,76 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const finalUserId = userId || body.userId; 
-
     const { 
         nome, contato, segmentacao, faturamentoEstimado, 
-        dynamicData, historicoCompleto, status 
+        dynamicData, historicoCompleto, status, resumoDaConversa, firstContactSent,
+        prioridade, ramo, campanha, agencia, dataRenovacao, telefoneFixo, corretorNome
     } = body;
 
-    if (!finalUserId || !contato) {
-        return NextResponse.json({ error: 'UserId e Contato são obrigatórios' }, { status: 400 });
+    if (!contato) {
+        return NextResponse.json({ error: 'Contato é obrigatório' }, { status: 400 });
     }
 
     const cleanPhone = standardizePhone(contato);
 
-    const lead = await prisma.lead.upsert({
+    // Busca lead existente se houver
+    const existingLead = await prisma.lead.findFirst({
         where: {
-            contato: cleanPhone
-        },
-        update: {
-            name: nome || undefined,
-            segmentacao: segmentacao || undefined,
-            faturamentoEstimado: faturamentoEstimado || undefined,
-            dynamicData: dynamicData || undefined,
-            historicoCompleto: historicoCompleto || undefined,
-            status: status || undefined,
-            updatedAt: new Date()
-        },
-        create: {
-            userId: finalUserId,
-            name: nome || 'Lead Novo',
-            contato: cleanPhone,
-            segmentacao: segmentacao || 'ENTRANTE',
-            faturamentoEstimado: faturamentoEstimado || '',
-            dynamicData: dynamicData || {},
-            historicoCompleto: historicoCompleto || [],
-            status: status || 'ENTRANTE',
-            firstContactSent: false
+          OR: [
+            { contato: cleanPhone },
+            { contato: contato }
+          ]
         }
     });
+
+    const finalUserId = userId || body.userId || existingLead?.userId || null;
+
+    let lead;
+    if (existingLead) {
+      lead = await prisma.lead.update({
+        where: { id: existingLead.id },
+        data: {
+          ...(nome && { name: nome }),
+          ...(segmentacao && { segmentacao }),
+          ...(faturamentoEstimado && { faturamentoEstimado }),
+          ...(prioridade && { prioridade }),
+          ...(ramo && { ramo }),
+          ...(campanha && { campanha }),
+          ...(agencia && { agencia }),
+          ...(telefoneFixo && { telefoneFixo }),
+          ...(corretorNome && { corretorNome }),
+          ...(dataRenovacao && { dataRenovacao: new Date(dataRenovacao) }),
+          ...(status && { status }),
+          ...(resumoDaConversa !== undefined && { resumoDaConversa }),
+          ...(firstContactSent !== undefined && { firstContactSent }),
+          ...(dynamicData && { dynamicData }),
+          ...(historicoCompleto && { historicoCompleto }),
+          updatedAt: new Date()
+        }
+      });
+    } else {
+      lead = await prisma.lead.create({
+        data: {
+          userId: finalUserId,
+          name: nome || 'Lead Novo',
+          contato: cleanPhone,
+          segmentacao: segmentacao || 'ENTRANTE',
+          faturamentoEstimado: faturamentoEstimado || '',
+          prioridade: prioridade || null,
+          ramo: ramo || null,
+          campanha: campanha || 'Campanha de Renovação',
+          agencia: agencia || null,
+          telefoneFixo: telefoneFixo || null,
+          corretorNome: corretorNome || null,
+          dataRenovacao: dataRenovacao ? new Date(dataRenovacao) : null,
+          dynamicData: dynamicData || {},
+          historicoCompleto: historicoCompleto || [],
+          resumoDaConversa: resumoDaConversa || null,
+          status: status || 'ENTRANTE',
+          firstContactSent: firstContactSent ?? false
+        }
+      });
+    }
 
     return NextResponse.json({ success: true, leadId: lead.id }, { status: 200 });
 

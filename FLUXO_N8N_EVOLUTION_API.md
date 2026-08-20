@@ -319,21 +319,21 @@ return messages.map((text, index) => ({
 * **Headers:**
   * `x-api-key`: `uj9/haa/BCEPS0zmm7aPVTCgrNOnS8UHc5rGD3MT6VG7Y4B55FrWaD1mKzG6DUlN`
   * `Content-Type`: `application/json`
-* **Body:**
-  ```json
-  {
-    "contato": "={{ $('Code - Montar Prompt e Contexto').first().json.lead.phone }}",
-    "status": "ENTRANTE",
-    "firstContactSent": true,
-    "resumoDaConversa": "Primeira abordagem de renovação disparada com sucesso via n8n.",
-    "historicoCompleto": [
+* **Body Parameters (Expression `fx`):**
+  ```javascript
+  {{ {
+    contato: $('Code - Montar Prompt e Contexto').first().json.lead.phone,
+    status: "ENTRANTE",
+    firstContactSent: true,
+    resumoDaConversa: "Primeira abordagem de renovação disparada com sucesso via n8n.",
+    historicoCompleto: [
       {
-        "role": "assistant",
-        "content": "={{ $('AI Agent - Primeiro Contato Outbound').first().json.output }}",
-        "timestamp": "={{ new Date().toISOString() }}"
+        role: "assistant",
+        content: $('AI Agent - Primeiro Contato Outbound').first().json.output,
+        timestamp: new Date().toISOString()
       }
     ]
-  }
+  } }}
   ```
 
 ---
@@ -591,25 +591,26 @@ return messages.map((text, index) => ({
 * **Headers:**
   * `x-api-key`: `uj9/haa/BCEPS0zmm7aPVTCgrNOnS8UHc5rGD3MT6VG7Y4B55FrWaD1mKzG6DUlN`
   * `Content-Type`: `application/json`
-* **Body:**
-  ```json
-  {
-    "contato": "={{ $('Code - Extrair Dados da Mensagem').first().json.phone }}",
-    "status": "QUALIFICADO",
-    "resumoDaConversa": "={{ $('AI Agent - Lucas Conversational Copilot').first().json.output }}",
-    "historicoCompleto": [
+* **Body Parameters (Expression `fx`):**
+  *(Cole exatamente como objeto JavaScript dentro de `{{ { ... } }}` para evitar erros de quebra de linha no JSON)*
+  ```javascript
+  {{ {
+    contato: $('Code - Extrair Dados da Mensagem').first().json.phone,
+    status: "QUALIFICADO",
+    resumoDaConversa: $('AI Agent - Lucas Conversational Copilot').first().json.output,
+    historicoCompleto: [
       {
-        "role": "user",
-        "content": "={{ $('Code - Extrair Dados da Mensagem').first().json.messageText }}",
-        "timestamp": "={{ new Date().toISOString() }}"
+        role: "user",
+        content: $('Code - Extrair Dados da Mensagem').first().json.messageText,
+        timestamp: new Date().toISOString()
       },
       {
-        "role": "assistant",
-        "content": "={{ $('AI Agent - Lucas Conversational Copilot').first().json.output }}",
-        "timestamp": "={{ new Date().toISOString() }}"
+        role: "assistant",
+        content: $('AI Agent - Lucas Conversational Copilot').first().json.output,
+        timestamp: new Date().toISOString()
       }
     ]
-  }
+  } }}
   ```
 
 ---
