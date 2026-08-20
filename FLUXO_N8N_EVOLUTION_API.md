@@ -277,27 +277,40 @@ return messages.map((text, index) => ({
 
 #### 8. Nó: `Wait - Digitação Proporcional`
 * **Tipo:** `n8n-nodes-base.wait`
-* **Wait Amount:** `={{ Math.min(Math.max($json.text.length * 45, 1200), 4000) }}` (ms)
+* **Resume:** `After time interval`
+* **Unit:** `Seconds` (Segundos)
+* **Amount (Expressão):**
+  ```javascript
+  {{ Math.min(Math.max(Math.round((($('Loop Over Items').item.json.text || '').length * 0.05)), 2), 5) }}
+  ```
+  *(Ou simplesmente digite `3` no campo Amount se preferir um tempo fixo).*
+* **Por que ocorreu o erro anterior:** Como o nó anterior é o da Evolution API, `$json` continha a resposta do WhatsApp e não a mensagem. A expressão acima busca o texto diretamente do nó `$('Loop Over Items')`, garantindo um número válido em **Segundos** (entre 2 e 5 segundos).
 
 #### 9. Nó: `Evolution API - Enviar Texto`
 * **Tipo:** `n8n-nodes-base.httpRequest`
 * **Method:** `POST`
-* **URL:** `https://sua-evolution-api.com/message/sendText/{{ $json.instanceName }}`
+* **URL:** `https://sua-evolution-api.com/message/sendText/{{ $('Loop Over Items').item.json.instanceName }}`
 * **Headers:**
   * `apikey`: `SUA_EVOLUTION_API_KEY`
   * `Content-Type`: `application/json`
 * **Body:**
   ```json
   {
-    "number": "={{ $json.phone }}",
-    "text": "={{ $json.text }}",
+    "number": "={{ $('Loop Over Items').item.json.phone }}",
+    "text": "={{ $('Loop Over Items').item.json.text }}",
     "linkPreview": false
   }
   ```
 
 #### 10. Nó: `Wait - Intervalo Entre Balões (Antiban)`
 * **Tipo:** `n8n-nodes-base.wait`
-* **Wait Amount:** `={{ Math.floor(Math.random() * (5000 - 3000 + 1) + 3000) }}` (ms)
+* **Resume:** `After time interval`
+* **Unit:** `Seconds` (Segundos)
+* **Amount (Expressão):**
+  ```javascript
+  {{ Math.floor(Math.random() * 3) + 3 }}
+  ```
+  *(Gera uma pausa aleatória entre 3 e 5 segundos antes da próxima mensagem do loop).*
 
 #### 11. Nó: `HTTP Request - Sincronizar Disparo no Dashboard`
 * **Tipo:** `n8n-nodes-base.httpRequest`
