@@ -6,12 +6,21 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { 
   Phone, Calendar, ArrowLeft, MessageSquare, 
   FileText, Activity, Trash2, Edit, ShieldCheck, 
   Building2, UserCheck, Clock, Flame, 
   FileSpreadsheet, Hash, DollarSign, CheckCircle2,
-  AlertTriangle, PhoneCall, ExternalLink
+  AlertTriangle, PhoneCall, ExternalLink, Bot, Send,
+  Loader2, Sparkles
 } from 'lucide-react';
 import { formatDistanceToNow, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -26,7 +35,8 @@ interface LeadDetailsViewProps {
 
 export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
   const router = useRouter();
-  const [searchTerm, setSearchTerm] = useState('');
+  const [isDispatching, setIsDispatching] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
   const handleDelete = async () => {
     if (!confirm('Tem certeza que deseja excluir este lead? Essa ação não pode ser desfeita.')) return;
@@ -42,6 +52,37 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
       }
     } catch (e) {
       toast.error('Erro ao excluir lead.');
+    }
+  };
+
+  // Disparo individual com o Lucas via n8n
+  const handleDispatchLucas = async () => {
+    setIsDispatching(true);
+    const toastId = toast.loading('Enviando lead para a automação do Lucas...');
+
+    try {
+      const res = await fetch('/api/automations/dispatch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: lead.id }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao processar disparo.');
+      }
+
+      toast.dismiss(toastId);
+      toast.success(`Sucesso! O Lucas iniciou a abordagem com ${lead.name} no WhatsApp.`);
+      setConfirmDialogOpen(false);
+      router.refresh();
+
+    } catch (error: any) {
+      toast.dismiss(toastId);
+      toast.error(error.message || 'Erro durante o disparo.');
+    } finally {
+      setIsDispatching(false);
     }
   };
 
@@ -96,7 +137,7 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       
-      {/* Navegação e Ações */}
+      {/* Navegação e Ações de Topo */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <Button variant="ghost" className="pl-0 gap-2 hover:bg-transparent hover:text-blue-600" onClick={() => router.back()}>
           <ArrowLeft className="h-4 w-4" /> Voltar para lista
@@ -163,12 +204,28 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
 
           {/* Botões de Ação Direta */}
           <div className="flex flex-wrap gap-2 w-full lg:w-auto">
+            {/* Botão de Disparo do Lucas */}
+            <Button
+              className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-xs flex-1 lg:flex-initial font-semibold"
+              disabled={isDispatching}
+              onClick={() => setConfirmDialogOpen(true)}
+            >
+              {isDispatching ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Bot className="h-4 w-4" />
+              )}
+              Disparar Lucas (IA)
+            </Button>
+
             <Button 
-              className="gap-2 bg-green-600 hover:bg-green-700 text-white shadow-xs flex-1 lg:flex-initial"
+              variant="outline"
+              className="gap-2 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800 hover:bg-green-50 dark:hover:bg-green-950/50 flex-1 lg:flex-initial"
               onClick={() => window.open(`https://wa.me/${lead.contato.replace(/\D/g, '')}`, '_blank')}
             >
               <MessageSquare className="h-4 w-4" /> WhatsApp
             </Button>
+
             {lead.contato && (
               <Button 
                 variant="outline"
@@ -439,14 +496,29 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
               {/* Status de Primeiro Contato com IA */}
               <Card className="shadow-xs border border-slate-200 dark:border-slate-800">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-indigo-600" /> Status da Automação de Abordagem
+                  <CardTitle className="text-base flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Bot className="h-4 w-4 text-blue-600" /> Automação de Abordagem com Lucas (IA)
+                    </span>
+                    <Button
+                      size="sm"
+                      onClick={() => setConfirmDialogOpen(true)}
+                      disabled={isDispatching}
+                      className="h-8 gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold"
+                    >
+                      {isDispatching ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Send className="h-3.5 w-3.5" />
+                      )}
+                      {lead.firstContactSent ? 'Disparar Novamente' : 'Disparar Abordagem'}
+                    </Button>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
                     <div className="space-y-0.5">
-                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Primeira Mensagem do Robô (Lucas)</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Status do Primeiro Contato</p>
                       <p className="text-xs text-muted-foreground">Disparo automático de abordagem via WhatsApp.</p>
                     </div>
                     {lead.firstContactSent ? (
@@ -455,7 +527,7 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="text-slate-600 dark:text-slate-400">
-                        Pendente / Na Fila
+                        Pendente / Não Disparado
                       </Badge>
                     )}
                   </div>
@@ -573,6 +645,55 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
         </div>
 
       </div>
+
+      {/* Diálogo de Confirmação de Disparo Individual */}
+      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
+              <Bot className="h-5 w-5 text-blue-600" /> Iniciar Disparo com Lucas (IA)
+            </DialogTitle>
+            <DialogDescription>
+              Deseja enviar a abordagem automática do Lucas para <strong className="text-slate-900 dark:text-slate-100">{lead.name}</strong> ({lead.contato})?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="bg-slate-50 dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs space-y-2">
+            <p className="font-semibold text-slate-800 dark:text-slate-200">Parâmetros do Disparo:</p>
+            <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
+              <li><strong>Ramo:</strong> {lead.ramo || 'Seguro Residencial'}</li>
+              <li><strong>Campanha:</strong> {lead.campanha || 'Campanha de Renovação'}</li>
+              <li><strong>Agência:</strong> {lead.agencia || '-'}</li>
+              <li><strong>Vencimento:</strong> {renewalDate ? renewalDate.toLocaleDateString('pt-BR') : '-'}</li>
+            </ul>
+          </div>
+
+          <DialogFooter className="gap-2 sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setConfirmDialogOpen(false)}
+              disabled={isDispatching}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleDispatchLucas}
+              disabled={isDispatching}
+              className="bg-blue-600 hover:bg-blue-700 text-white gap-2 font-semibold"
+            >
+              {isDispatching ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Disparando...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" /> Confirmar e Disparar
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

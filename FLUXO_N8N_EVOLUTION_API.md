@@ -1,12 +1,12 @@
 # 🚀 Documentação Técnica de Mensageria: Evolution API + n8n + Lucas Dashboard
 
-Guia completo de arquitetura, configuração de nós, prompts dos agentes de IA, estratégias antiban com loop batch e integração com as APIs do **Lucas Dashboard (CSB Seguros)**.
+Guia completo de arquitetura, configuração de nós (sem necessidade de plano Enterprise), prompts dos agentes de IA, estratégias antiban com loop batch e integração direta com o **Lucas Dashboard em Produção** (`https://lucas-dashboard.vercel.app`).
 
 ---
 
 ## 📑 Sumário
 1. [Visão Geral e Arquitetura](#1-visão-geral-e-arquitetura)
-2. [Ambiente e Variáveis Globais do n8n](#2-ambiente-e-variáveis-globais-do-n8n)
+2. [Configurações de Produção (Sem Plano Enterprise)](#2-configurações-de-produção-sem-plano-enterprise)
 3. [Workflow 1: Disparo Ativo & Primeiro Contato (Outbound)](#3-workflow-1-disparo-ativo--primeiro-contato-outbound)
    - [Mapeamento Nó por Nó](#mapeamento-nó-por-nó-workflow-1)
    - [System Prompt do Agente de Primeiro Contato](#system-prompt-agente-1-primeiro-contato)
@@ -16,18 +16,18 @@ Guia completo de arquitetura, configuração de nós, prompts dos agentes de IA,
    - [System Prompt do Agente Lucas (Receptivo)](#system-prompt-agente-lucas-receptivo)
    - [Ferramentas de IA (AI Tools / HTTP Request)](#ferramentas-de-ia-ai-tools)
 5. [Estratégias Antiban & Naturalidade Extrema](#5-estratégias-antiban--naturalidade-extrema)
-6. [Resumo de Endpoints e Payloads do Dashboard](#6-resumo-de-endpoints-e-payloads-do-dashboard)
+6. [Resumo das URLs e Endpoints Prontos para Produção](#6-resumo-das-urls-e-endpoints-prontos-para-produção)
 
 ---
 
 ## 1. Visão Geral e Arquitetura
 
-O sistema é dividido em **2 Workflows independentes e complementares no n8n**, comunicando-se com a **Evolution API v2** e com o **Lucas Dashboard**:
+O sistema é composto por **2 Workflows independentes e complementares no n8n**, comunicando-se com a sua **Evolution API v2** e com o **Lucas Dashboard em Produção**:
 
 ```
                                ┌────────────────────────────────────────────────────────┐
                                │                    LUCAS DASHBOARD                     │
-                               │           (Next.js 16 + Prisma + PostgreSQL)           │
+                               │        https://lucas-dashboard.vercel.app              │
                                └──────────────┬───────────────────────────▲─────────────┘
                                               │                           │
                    1. Gatilho de Disparo      │                           │ 6. Sync Lead Status &
@@ -36,7 +36,7 @@ O sistema é dividido em **2 Workflows independentes e complementares no n8n**, 
    ┌─────────────────────────────────────────────────────────────┐        │
    │           WORKFLOW 1: DISPARO ATIVO / PRIMEIRO CONTATO       │        │
    │  • Recebe Lead da Campanha (Renovação / Frio)               │        │
-   │  • HTTP Tool: Busca Contexto do Corretor & Produto          │        │
+   │  • HTTP: Busca Contexto do Corretor em Produção             │        │
    │  • AI Agent Outbound: Gera 2-3 mensagens curtas com "|||"   │        │
    │  • Loop Batch: Quebra em balões, simula digitação (composing)│        │
    │  • Envia via Evolution API com Delays Humanos Antiban        │        │
@@ -54,7 +54,7 @@ O sistema é dividido em **2 Workflows independentes e complementares no n8n**, 
    ┌─────────────────────────────────────────────────────────────┐        │
    │       WORKFLOW 2: RECEPTIVO PRINCIPAL (AGENTE LUCAS)        │        │
    │  • Webhook Evolution API (messages.upsert)                  │        │
-   │  • HTTP Tool: Busca histórico do Lead + Slots Disponíveis   │        │
+   │  • HTTP: Busca histórico do Lead + Slots Disponíveis        │        │
    │  • AI Agent Lucas: Atendimento, Qualificação e Quebra de Objeções   │
    │  • AI Tool: Criação Atômica de Agendamento                  ├────────┘
    │  • Loop Batch: Digitação humana e envio fracionado          │
@@ -63,27 +63,29 @@ O sistema é dividido em **2 Workflows independentes e complementares no n8n**, 
 
 ---
 
-## 2. Ambiente e Variáveis Globais do n8n
+## 2. Configurações de Produção (Sem Plano Enterprise)
 
-Configure as seguintes variáveis de ambiente no seu painel do n8n (**Settings > Variables** ou arquivo `.env` do n8n):
+Como o n8n Community / Standard não possui o menu de variáveis globais Enterprise (`$env`), **todas as URLs e credenciais foram configuradas diretamente nos nós**:
 
-| Variável | Exemplo de Valor | Descrição |
-| :--- | :--- | :--- |
-| `DASHBOARD_BASE_URL` | `https://seu-dominio.com` ou `http://localhost:3000` | URL base do Lucas Dashboard |
-| `N8N_INTERNAL_API_KEY` | `sua_chave_secreta_aqui` | Chave configurada no `.env` do Dashboard (`N8N_INTERNAL_API_KEY`) |
-| `EVOLUTION_API_BASE_URL` | `https://sua-evolution-api.com` | URL base da sua instância Evolution API |
-| `EVOLUTION_API_KEY` | `sua_global_ou_instance_api_key` | Chave de autenticação da Evolution API |
-| `OPENAI_API_KEY` | `sk-...` | Chave da OpenAI para o modelo GPT-4o / GPT-4o-mini |
+* **URL de Produção do Dashboard:** `https://lucas-dashboard.vercel.app`
+* **Chave de Autenticação Interna (Header `x-api-key`):**
+  ```text
+  uj9/haa/BCEPS0zmm7aPVTCgrNOnS8UHc5rGD3MT6VG7Y4B55FrWaD1mKzG6DUlN
+  ```
+* **URL do Webhook de Disparo no n8n:**
+  ```text
+  https://n8n-n8n.khdya3.easypanel.host/webhook/lucas-disparar
+  ```
 
 ---
 
 ## 3. Workflow 1: Disparo Ativo & Primeiro Contato (Outbound)
 
-* **URL do Webhook do Gatilho:**  
+* **Webhook de Disparo:**  
   `https://n8n-n8n.khdya3.easypanel.host/webhook/lucas-disparar`
 * **Método HTTP:** `POST`
 
-### 📥 Payload Recebido pelo Webhook do Dashboard
+### 📥 Exemplo de Payload Enviado ao Webhook
 
 ```json
 {
@@ -109,17 +111,18 @@ Configure as seguintes variáveis de ambiente no seu painel do n8n (**Settings >
 * **Tipo:** `n8n-nodes-base.webhook`
 * **HTTP Method:** `POST`
 * **Path:** `lucas-disparar`
-* **Response Mode:** `On Received` (Retorna `{"status": "queued"}` com status 200 imediatamente para não travar o frontend).
+* **Response Mode:** `On Received`
+* **Response Code:** `200`
+* **Response Body:** `{"status": "queued", "message": "Disparo iniciado com sucesso"}`
 
 ---
 
 #### 2. Nó: `HTTP Request - Buscar Especialista Corretor`
 * **Tipo:** `n8n-nodes-base.httpRequest`
 * **Method:** `GET`
-* **URL:** `={{ $env.DASHBOARD_BASE_URL }}/api/users/by-phone/{{ $json.body.instancePhone }}`
+* **URL:** `https://lucas-dashboard.vercel.app/api/users/by-phone/{{ $json.body.instancePhone }}`
 * **Headers:**
-  * `x-api-key`: `={{ $env.N8N_INTERNAL_API_KEY }}`
-* **Finalidade:** Obter as regras de negócio do corretor, tom de voz, produtos ativos e mensagem de boas-vindas customizada.
+  * `x-api-key`: `uj9/haa/BCEPS0zmm7aPVTCgrNOnS8UHc5rGD3MT6VG7Y4B55FrWaD1mKzG6DUlN`
 
 ---
 
@@ -160,8 +163,8 @@ return {
 #### 4. Nó: `AI Agent - Primeiro Contato Outbound`
 * **Tipo:** `@n8n/n8n-nodes-langchain.agent` (ou `OpenAI Chat Model`)
 * **Model:** `GPT-4o` (Temperature: `0.5`)
-* **Prompt do Sistema (System Prompt):** *(Ver seção abaixo)*
-* **Entrada do Usuário:**
+* **Prompt do Sistema (System Prompt):** *(Ver caixa abaixo)*
+* **Entrada do Usuário (Prompt):**
   ```text
   Gere a abordagem de primeiro contato para o seguinte cliente:
   Nome: {{ $json.lead.name }}
@@ -259,9 +262,9 @@ return messages.map((text, index) => ({
 #### 7. Nó: `Evolution API - Enviar Presença (Composing)`
 * **Tipo:** `n8n-nodes-base.httpRequest`
 * **Method:** `POST`
-* **URL:** `={{ $env.EVOLUTION_API_BASE_URL }}/chat/sendPresence/{{ $json.instanceName }}`
+* **URL:** `https://sua-evolution-api.com/chat/sendPresence/{{ $json.instanceName }}`
 * **Headers:**
-  * `apikey`: `={{ $env.EVOLUTION_API_KEY }}`
+  * `apikey`: `SUA_EVOLUTION_API_KEY`
   * `Content-Type`: `application/json`
 * **Body:**
   ```json
@@ -275,14 +278,13 @@ return messages.map((text, index) => ({
 #### 8. Nó: `Wait - Digitação Proporcional`
 * **Tipo:** `n8n-nodes-base.wait`
 * **Wait Amount:** `={{ Math.min(Math.max($json.text.length * 45, 1200), 4000) }}` (ms)
-* *Explicação:* Calcula o tempo que um ser humano levaria para digitar aquele trecho (45ms por caractere, mínimo 1.2s, máximo 4.0s).
 
 #### 9. Nó: `Evolution API - Enviar Texto`
 * **Tipo:** `n8n-nodes-base.httpRequest`
 * **Method:** `POST`
-* **URL:** `={{ $env.EVOLUTION_API_BASE_URL }}/message/sendText/{{ $json.instanceName }}`
+* **URL:** `https://sua-evolution-api.com/message/sendText/{{ $json.instanceName }}`
 * **Headers:**
-  * `apikey`: `={{ $env.EVOLUTION_API_KEY }}`
+  * `apikey`: `SUA_EVOLUTION_API_KEY`
   * `Content-Type`: `application/json`
 * **Body:**
   ```json
@@ -296,14 +298,13 @@ return messages.map((text, index) => ({
 #### 10. Nó: `Wait - Intervalo Entre Balões (Antiban)`
 * **Tipo:** `n8n-nodes-base.wait`
 * **Wait Amount:** `={{ Math.floor(Math.random() * (5000 - 3000 + 1) + 3000) }}` (ms)
-* *Explicação:* Pausa entre 3 e 5 segundos antes de mandar o próximo balão de mensagem, quebrando padrões estáticos de bot.
 
 #### 11. Nó: `HTTP Request - Sincronizar Disparo no Dashboard`
 * **Tipo:** `n8n-nodes-base.httpRequest`
 * **Method:** `POST`
-* **URL:** `={{ $env.DASHBOARD_BASE_URL }}/api/leads`
+* **URL:** `https://lucas-dashboard.vercel.app/api/leads`
 * **Headers:**
-  * `x-api-key`: `={{ $env.N8N_INTERNAL_API_KEY }}`
+  * `x-api-key`: `uj9/haa/BCEPS0zmm7aPVTCgrNOnS8UHc5rGD3MT6VG7Y4B55FrWaD1mKzG6DUlN`
   * `Content-Type`: `application/json`
 * **Body:**
   ```json
@@ -382,9 +383,9 @@ return {
 #### 4. Nó: `HTTP Request - Buscar Dados do Especialista e Lead`
 * **Tipo:** `n8n-nodes-base.httpRequest`
 * **Method:** `GET`
-* **URL:** `={{ $env.DASHBOARD_BASE_URL }}/api/users/by-phone/{{ $json.phone }}`
+* **URL:** `https://lucas-dashboard.vercel.app/api/users/by-phone/{{ $json.phone }}`
 * **Headers:**
-  * `x-api-key`: `={{ $env.N8N_INTERNAL_API_KEY }}`
+  * `x-api-key`: `uj9/haa/BCEPS0zmm7aPVTCgrNOnS8UHc5rGD3MT6VG7Y4B55FrWaD1mKzG6DUlN`
 
 ---
 
@@ -392,7 +393,7 @@ return {
 * **Tipo:** `@n8n/n8n-nodes-langchain.agent`
 * **Chat Model:** `OpenAI GPT-4o` (Temperature: `0.4`)
 * **Memory:** `Window Buffer Memory` (Session Key: `={{ $json.sessionId }}` | Context Window: `10` mensagens)
-* **Prompt do Sistema:** *(Ver seção abaixo)*
+* **Prompt do Sistema:** *(Ver caixa abaixo)*
 * **Tools Conectadas:**
   1. `Tool: consultar_horarios_disponiveis`
   2. `Tool: confirmar_agendamento_cotacao`
@@ -431,9 +432,9 @@ USO DAS FERRAMENTAS (TOOLS):
 * **Descrição:** *"Consulta os dias e horários livres na agenda do corretor para agendamento de cotação de seguros."*
 * **Tipo:** `Custom Tool / HTTP Request`
 * **Method:** `GET`
-* **URL:** `={{ $env.DASHBOARD_BASE_URL }}/api/availability?userId={{ $json.specialist.id }}`
+* **URL:** `https://lucas-dashboard.vercel.app/api/availability?userId={{ $json.specialist.id }}`
 * **Headers:**
-  * `x-api-key`: `={{ $env.N8N_INTERNAL_API_KEY }}`
+  * `x-api-key`: `uj9/haa/BCEPS0zmm7aPVTCgrNOnS8UHc5rGD3MT6VG7Y4B55FrWaD1mKzG6DUlN`
 
 ---
 
@@ -442,9 +443,9 @@ USO DAS FERRAMENTAS (TOOLS):
 * **Descrição:** *"Confirma e reserva o agendamento de cotação com o corretor especialista. Requer userId, contatoLead, dataHoraISO e resumo."*
 * **Tipo:** `Custom Tool / HTTP Request`
 * **Method:** `POST`
-* **URL:** `={{ $env.DASHBOARD_BASE_URL }}/api/agendamentos`
+* **URL:** `https://lucas-dashboard.vercel.app/api/agendamentos`
 * **Headers:**
-  * `x-api-key`: `={{ $env.N8N_INTERNAL_API_KEY }}`
+  * `x-api-key`: `uj9/haa/BCEPS0zmm7aPVTCgrNOnS8UHc5rGD3MT6VG7Y4B55FrWaD1mKzG6DUlN`
   * `Content-Type`: `application/json`
 * **Body:**
   ```json
@@ -460,16 +461,17 @@ USO DAS FERRAMENTAS (TOOLS):
 ---
 
 #### 6. Nó: `Code - Splitter de Mensagens Receptivas`
-* **Mesma lógica do Workflow 1:** Separa a resposta da IA pelo delimitador `|||` e alimenta o loop batch.
+* Separa a resposta da IA pelo delimitador `|||` e alimenta o loop batch.
 
 #### 7. Nó: `Loop Over Items` ➔ `Send Presence` ➔ `Wait (Digitando)` ➔ `Send Text` ➔ `Wait (Antiban)`
-* Envia cada balão fracionado para a Evolution API com a mesma naturalidade extrema.
+* Envia cada balão fracionado para a Evolution API com a mesma naturalidade humana.
 
-#### 8. Nó: `HTTP Request - Atualizar Lead no Dashboard`
+#### 8. Nó: `HTTP Request - Sincronizar Lead no Dashboard`
 * **Method:** `POST`
-* **URL:** `={{ $env.DASHBOARD_BASE_URL }}/api/leads`
+* **URL:** `https://lucas-dashboard.vercel.app/api/leads`
 * **Headers:**
-  * `x-api-key`: `={{ $env.N8N_INTERNAL_API_KEY }}`
+  * `x-api-key`: `uj9/haa/BCEPS0zmm7aPVTCgrNOnS8UHc5rGD3MT6VG7Y4B55FrWaD1mKzG6DUlN`
+  * `Content-Type`: `application/json`
 * **Body:**
   ```json
   {
@@ -506,16 +508,13 @@ USO DAS FERRAMENTAS (TOOLS):
 
 ---
 
-## 6. Resumo de Endpoints e Payloads do Dashboard
+## 6. Resumo das URLs e Endpoints Prontos para Produção
 
-| Endpoint | Método | Header de Auth | Finalidade |
+| Endpoint em Produção | Método | Header de Auth | Finalidade |
 | :--- | :---: | :--- | :--- |
-| `/api/leads/uncontacted` | `GET` | `x-api-key: {{ N8N_INTERNAL_API_KEY }}` | Lista os próximos leads entrantes prontos para disparo. |
-| `/api/users/by-phone/:phone` | `GET` | `x-api-key: {{ N8N_INTERNAL_API_KEY }}` | Retorna dados do corretor, regras de IA, produtos ativos e welcomeMessage. |
-| `/api/availability?userId=:id` | `GET` | `x-api-key: {{ N8N_INTERNAL_API_KEY }}` | Lista slots futuros disponíveis para agendamento de reuniões. |
-| `/api/agendamentos` | `POST` | `x-api-key: {{ N8N_INTERNAL_API_KEY }}` | Cria agendamento atômico, ocupa slot e atualiza o lead para `AGENDADO_COTACAO`. |
-| `/api/leads` | `POST` | `x-api-key: {{ N8N_INTERNAL_API_KEY }}` | Atualiza status do lead, resumo IA e histórico completo da conversa. |
-
----
-
-> 💡 **Dica de Produção:** Todos os nós acima já utilizam o padrão de tratamento de fuso horário brasileiro (`America/Sao_Paulo` / GMT-3) e são 100% compatíveis com a versão mais recente do n8n (com nós LangChain) e Evolution API v2.
+| `https://lucas-dashboard.vercel.app/api/leads/uncontacted` | `GET` | `x-api-key: uj9/haa/BCEPS0zmm...` | Lista leads entrantes prontos para disparo. |
+| `https://lucas-dashboard.vercel.app/api/users/by-phone/:phone` | `GET` | `x-api-key: uj9/haa/BCEPS0zmm...` | Retorna dados do corretor, regras de IA e produtos ativos. |
+| `https://lucas-dashboard.vercel.app/api/availability?userId=:id` | `GET` | `x-api-key: uj9/haa/BCEPS0zmm...` | Lista slots disponíveis para agendamento. |
+| `https://lucas-dashboard.vercel.app/api/agendamentos` | `POST` | `x-api-key: uj9/haa/BCEPS0zmm...` | Cria agendamento atômico e atualiza lead para `AGENDADO_COTACAO`. |
+| `https://lucas-dashboard.vercel.app/api/leads` | `POST` | `x-api-key: uj9/haa/BCEPS0zmm...` | Atualiza status do lead, resumo IA e histórico de conversas. |
+| `https://n8n-n8n.khdya3.easypanel.host/webhook/lucas-disparar` | `POST` | Aberto / Interno | Webhook para disparo ativo disparado pelo Dashboard. |

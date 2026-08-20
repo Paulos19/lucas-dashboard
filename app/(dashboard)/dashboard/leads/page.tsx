@@ -1,13 +1,11 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { LeadsView } from '@/components/Dashboard/leads/leads-view';
-
-const prisma = new PrismaClient();
 
 // Status que usamos no Kanban
 const KANBAN_STATUSES = [
-    'ENTRANTE', 'QUALIFICADO', 'AGENDADO_COTACAO', 'PROPOSTA_ENVIADA', 'VENDA_REALIZADA'
+  'ENTRANTE', 'QUALIFICADO', 'AGENDADO_COTACAO', 'PROPOSTA_ENVIADA', 'VENDA_REALIZADA'
 ];
 
 export const dynamic = 'force-dynamic';
@@ -17,20 +15,25 @@ export default async function LeadsPage() {
   if (!session?.user?.id) redirect('/login');
 
   const userId = session.user.id;
+  const isAdmin = session.user.role === 'ADMIN';
 
   // --- OTIMIZAÇÃO DE CARGA INICIAL ---
-  // Buscamos apenas os 10 primeiros leads de cada status em paralelo.
-  // Isso reduz o payload de ~6000 itens para no máximo 50.
-  const promises = KANBAN_STATUSES.map(status => 
-    prisma.lead.findMany({
-        where: { userId, status: status as any },
-        orderBy: { updatedAt: 'desc' },
-        take: 10, // Apenas a primeira "página"
-        include: {
-            interestedInProduct: { select: { name: true } }
-        }
-    })
-  );
+  // Buscamos os leads por status para compor o Kanban e Tabela inicial
+  const promises = KANBAN_STATUSES.map(status => {
+    const whereClause: any = { status: status as any };
+    if (!isAdmin) {
+      whereClause.userId = userId;
+    }
+
+    return prisma.lead.findMany({
+      where: whereClause,
+      orderBy: { updatedAt: 'desc' },
+      take: 25, // Aumentado para ter uma boa amostragem na tabela
+      include: {
+        interestedInProduct: { select: { name: true } }
+      }
+    });
+  });
 
   const results = await Promise.all(promises);
   
