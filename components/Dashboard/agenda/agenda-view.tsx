@@ -69,14 +69,16 @@ export function AgendaView({ agendamentos, slots }: AgendaViewProps) {
         () => agendamentos.filter(a => date && isSameDay(new Date(a.dataHora), date)),
         [agendamentos, date],
     );
+    // Apenas horários NÃO ocupados devem ser listados como "Disponíveis"
     const slotsToday = useMemo(
-        () => slots.filter(s => date && isSameDay(new Date(s.startTime), date)),
+        () => slots.filter(s => date && !s.isBooked && isSameDay(new Date(s.startTime), date)),
         [slots, date],
     );
 
     /* ── dias com eventos (para highlights do calendário) ───────── */
     const appointmentDates = useMemo(() => agendamentos.map(a => new Date(a.dataHora)), [agendamentos]);
-    const slotDates = useMemo(() => slots.map(s => new Date(s.startTime)), [slots]);
+    // Apenas dias que possuem ao menos 1 horário livre não ocupado
+    const slotDates = useMemo(() => slots.filter(s => !s.isBooked).map(s => new Date(s.startTime)), [slots]);
 
     /* ── handlers ──────────────────────────────────────────────── */
     const handleCreateSlot = async () => {

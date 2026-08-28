@@ -1,9 +1,8 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { AgendaView } from '@/components/Dashboard/agenda/agenda-view';
 
-const prisma = new PrismaClient();
 export const dynamic = 'force-dynamic';
 
 export default async function AgendaPage() {
