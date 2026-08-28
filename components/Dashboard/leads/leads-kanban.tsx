@@ -6,14 +6,20 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Clock, Phone, MoreHorizontal, Loader2, Calendar, Zap, CheckCircle2 } from 'lucide-react';
+import { 
+  Clock, Phone, MoreHorizontal, Loader2, Calendar, 
+  Zap, CheckCircle2, MessageSquare, Bot 
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { LeadChatWhatsApp } from './lead-chat-whatsapp';
+import { useRouter } from 'next/navigation';
 
 // --- DND KIT IMPORTS ---
 import {
@@ -39,11 +45,12 @@ const KANBAN_COLUMNS = [
 ];
 
 export function LeadsKanban({ data }: { data: Lead[] }) {
+  const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>(data);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [selectedChatLead, setSelectedChatLead] = useState<Lead | null>(null);
 
   // Estado de paginação individual para cada coluna
-  // Começamos na página 2 porque a página 1 já veio do servidor (initialData)
   const [pagination, setPagination] = useState<Record<string, { page: number, hasMore: boolean, loading: boolean }>>(() => {
     const initial: any = {};
     KANBAN_COLUMNS.forEach(c => initial[c.id] = { page: 2, hasMore: true, loading: false });
@@ -72,19 +79,16 @@ export function LeadsKanban({ data }: { data: Lead[] }) {
     const state = pagination[status];
     if (!state.hasMore || state.loading) return;
 
-    // 1. Marca como carregando
     setPagination(prev => ({
         ...prev,
         [status]: { ...prev[status], loading: true }
     }));
 
     try {
-        // 2. Busca API
         const res = await fetch(`/api/leads?status=${status}&page=${state.page}&limit=10`);
         if (!res.ok) throw new Error("Falha na API");
         const newLeads: Lead[] = await res.json();
 
-        // 3. Processa resultados
         if (newLeads.length === 0) {
             setPagination(prev => ({
                 ...prev,
@@ -92,17 +96,15 @@ export function LeadsKanban({ data }: { data: Lead[] }) {
             }));
         } else {
             setLeads(prev => {
-                // Deduplicação: Garante que não adicionamos leads que já existem
                 const existingIds = new Set(prev.map(l => l.id));
                 const uniqueLeads = newLeads.filter(l => !existingIds.has(l.id));
                 return [...prev, ...uniqueLeads];
             });
-            
             setPagination(prev => ({
                 ...prev,
                 [status]: { 
                     page: prev[status].page + 1, 
-                    hasMore: newLeads.length === 10, // Se veio menos que o limite, acabou
+                    hasMore: newLeads.length === 10,
                     loading: false 
                 }
             }));
@@ -111,7 +113,7 @@ export function LeadsKanban({ data }: { data: Lead[] }) {
         console.error(error);
         setPagination(prev => ({
             ...prev,
-            [status]: { ...prev[status], loading: false } // Permite tentar de novo
+            [status]: { ...prev[status], loading: false }
         }));
     }
   }, [pagination]);
@@ -133,18 +135,15 @@ export function LeadsKanban({ data }: { data: Lead[] }) {
 
     if (!currentLead || currentLead.status === newStatus) return;
 
-    // Update Otimista Local
     setLeads((prev) => 
       prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l)
     );
 
-    // Persistência no Servidor
     const result = await updateLeadStatus(leadId, newStatus);
 
     if (result.success) {
       toast.success(`Movido para ${KANBAN_COLUMNS.find(c => c.id === newStatus)?.label}`);
     } else {
-      // Rollback
       setLeads((prev) => 
         prev.map(l => l.id === leadId ? { ...l, status: currentLead.status } : l)
       );
@@ -155,49 +154,64 @@ export function LeadsKanban({ data }: { data: Lead[] }) {
   const activeLead = leads.find(l => l.id === activeId);
 
   return (
-    <DndContext 
-      sensors={sensors} 
-      onDragStart={handleDragStart} 
-      onDragEnd={handleDragEnd}
-    >
-      <div className="flex h-[calc(100vh-220px)] gap-4 overflow-x-auto pb-4 snap-x">
-        {KANBAN_COLUMNS.map((col) => (
-          <KanbanColumn 
-            key={col.id} 
-            col={col} 
-            leads={groupedLeads[col.id] || []} 
-            onLoadMore={() => loadMoreLeads(col.id)}
-            isLoading={pagination[col.id]?.loading}
-            hasMore={pagination[col.id]?.hasMore}
-          />
-        ))}
-      </div>
+    <>
+      <DndContext 
+        sensors={sensors} 
+        onDragStart={handleDragStart} 
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex h-[calc(100vh-220px)] gap-4 overflow-x-auto pb-4 snap-x">
+          {KANBAN_COLUMNS.map((col) => (
+            <KanbanColumn 
+              key={col.id} 
+              col={col} 
+              leads={groupedLeads[col.id] || []} 
+              onLoadMore={() => loadMoreLeads(col.id)}
+              isLoading={pagination[col.id]?.loading}
+              hasMore={pagination[col.id]?.hasMore}
+              onOpenChat={(lead) => setSelectedChatLead(lead)}
+            />
+          ))}
+        </div>
 
-      <DragOverlay>
-        {activeLead ? (
-          <div className="rotate-2 cursor-grabbing opacity-90 scale-105">
-            <KanbanCard lead={activeLead} isOverlay />
-          </div>
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+        <DragOverlay>
+          {activeLead ? (
+            <div className="rotate-2 cursor-grabbing opacity-90 scale-105">
+              <KanbanCard lead={activeLead} isOverlay />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+
+      {/* Modal de Chat WhatsApp Rápido no Kanban */}
+      <Dialog open={!!selectedChatLead} onOpenChange={(open) => !open && setSelectedChatLead(null)}>
+        <DialogContent className="max-w-4xl p-0 border-0 bg-transparent shadow-2xl overflow-hidden sm:rounded-2xl">
+          {selectedChatLead && (
+            <LeadChatWhatsApp 
+              lead={selectedChatLead} 
+              onRefreshLead={() => router.refresh()} 
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
 // --- COLUNA COM DETECÇÃO DE SCROLL ---
 
-function KanbanColumn({ col, leads, onLoadMore, isLoading, hasMore }: { 
+function KanbanColumn({ col, leads, onLoadMore, isLoading, hasMore, onOpenChat }: { 
     col: any, 
     leads: Lead[],
     onLoadMore: () => void,
     isLoading?: boolean,
-    hasMore?: boolean
+    hasMore?: boolean,
+    onOpenChat?: (lead: Lead) => void
 }) {
   const { setNodeRef } = useDroppable({ id: col.id });
   const observerRef = useRef<IntersectionObserver | null>(null);
   const triggerRef = useRef<HTMLDivElement | null>(null);
 
-  // Setup do Observer
   useEffect(() => {
     if (observerRef.current) observerRef.current.disconnect();
 
@@ -227,7 +241,11 @@ function KanbanColumn({ col, leads, onLoadMore, isLoading, hasMore }: {
 
       <div className="flex-1 p-2 space-y-3 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
         {leads.map((lead) => (
-          <DraggableKanbanCard key={lead.id} lead={lead} />
+          <DraggableKanbanCard 
+            key={lead.id} 
+            lead={lead} 
+            onOpenChat={onOpenChat}
+          />
         ))}
         
         {leads.length === 0 && !isLoading && (
@@ -236,7 +254,6 @@ function KanbanColumn({ col, leads, onLoadMore, isLoading, hasMore }: {
            </div>
         )}
 
-        {/* Elemento Sentinela para Trigger de Loading */}
         <div ref={triggerRef} className="py-2 flex justify-center w-full h-8">
             {isLoading && <Loader2 className="h-5 w-5 animate-spin text-slate-400" />}
         </div>
@@ -245,8 +262,7 @@ function KanbanColumn({ col, leads, onLoadMore, isLoading, hasMore }: {
   );
 }
 
-// Os componentes DraggableKanbanCard e KanbanCard permanecem iguais ao original...
-function DraggableKanbanCard({ lead }: { lead: Lead }) {
+function DraggableKanbanCard({ lead, onOpenChat }: { lead: Lead, onOpenChat?: (lead: Lead) => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: lead.id,
   });
@@ -265,12 +281,12 @@ function DraggableKanbanCard({ lead }: { lead: Lead }) {
 
   return (
     <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
-      <KanbanCard lead={lead} />
+      <KanbanCard lead={lead} onOpenChat={onOpenChat} />
     </div>
   );
 }
 
-function KanbanCard({ lead, isOverlay }: { lead: Lead, isOverlay?: boolean }) {
+function KanbanCard({ lead, isOverlay, onOpenChat }: { lead: Lead, isOverlay?: boolean, onOpenChat?: (lead: Lead) => void }) {
   const urgency = getRenewalUrgency(lead.dataRenovacao);
 
   return (
@@ -286,18 +302,40 @@ function KanbanCard({ lead, isOverlay }: { lead: Lead, isOverlay?: boolean }) {
           </div>
           
           {!isOverlay && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <MoreHorizontal className="h-4 w-4" />
+            <div className="flex items-center gap-0.5">
+              {onOpenChat && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenChat(lead);
+                  }}
+                  title="Abrir Chat WhatsApp"
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                  <DropdownMenuItem asChild>
-                      <Link href={`/dashboard/leads/${lead.id}`}>Ver Detalhes</Link>
-                  </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              )}
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    {onOpenChat && (
+                      <DropdownMenuItem onClick={() => onOpenChat(lead)} className="text-emerald-600 font-medium">
+                        <MessageSquare className="mr-2 h-4 w-4" /> Ver Chat WhatsApp
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem asChild>
+                        <Link href={`/dashboard/leads/${lead.id}`}>Ver Detalhes do Lead</Link>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )}
         </div>
 

@@ -632,9 +632,11 @@ return messages.map((text, index) => ({
 
 | Endpoint em Produção | Método | Header de Auth | Finalidade |
 | :--- | :---: | :--- | :--- |
-| `https://lucas-dashboard.vercel.app/api/leads/uncontacted` | `GET` | `x-api-key: uj9/haa/BCEPS0zmm...` | Lista leads entrantes prontos para disparo. |
+| `https://lucas-dashboard.vercel.app/api/leads/uncontacted` | `GET` | `x-api-key: uj9/haa/BCEPS0zmm...` | Lista leads entrantes ordenados por vencimento de apólice. |
 | `https://lucas-dashboard.vercel.app/api/users/by-phone/:phone` | `GET` | `x-api-key: uj9/haa/BCEPS0zmm...` | Retorna dados do corretor, regras de IA e produtos ativos. |
-| `https://lucas-dashboard.vercel.app/api/availability?userId=:id` | `GET` | `x-api-key: uj9/haa/BCEPS0zmm...` | Lista slots disponíveis para agendamento. |
-| `https://lucas-dashboard.vercel.app/api/agendamentos` | `POST` | `x-api-key: uj9/haa/BCEPS0zmm...` | Cria agendamento atômico e atualiza lead para `AGENDADO_COTACAO`. |
-| `https://lucas-dashboard.vercel.app/api/leads` | `POST` | `x-api-key: uj9/haa/BCEPS0zmm...` | Atualiza status do lead, resumo IA e histórico de conversas. |
+| `https://lucas-dashboard.vercel.app/api/availability?userId=:id` | `GET` | `x-api-key: uj9/haa/BCEPS0zmm...` | Lista slots livres para agendamento. |
+| `https://lucas-dashboard.vercel.app/api/agendamentos` | `POST` | `x-api-key: uj9/haa/BCEPS0zmm...` | Cria agendamento atômico e ocupa slot da agenda. |
+| `https://lucas-dashboard.vercel.app/api/leads/messages` | `POST` | `x-api-key: uj9/haa/BCEPS0zmm...` | Registra mensagens no Visualizador Chat WhatsApp em tempo real. |
+| `https://lucas-dashboard.vercel.app/api/leads` | `GET / POST` | `x-api-key: uj9/haa/BCEPS0zmm...` | Consulta ou atualiza lead, resumo da IA e status do funil. |
 | `https://n8n-n8n.khdya3.easypanel.host/webhook/lucas-disparar` | `POST` | Aberto / Interno | Webhook para disparo ativo disparado pelo Dashboard. |
+

@@ -65,8 +65,10 @@ import {
 import { formatDistanceToNow, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { AddLeadDialog } from '@/components/Dashboard/add-lead-dialog';
+import { LeadChatWhatsApp } from './lead-chat-whatsapp';
 import { cn } from '@/lib/utils';
 
 export type Lead = {
@@ -85,6 +87,10 @@ export type Lead = {
   telefoneFixo?: string | null;
   corretorNome?: string | null;
   firstContactSent?: boolean;
+  resumoDaConversa?: string | null;
+  historicoCompleto?: any;
+  agendamento?: any;
+  dynamicData?: any;
 };
 
 interface LeadsTableProps {
@@ -166,6 +172,7 @@ export function getRenewalUrgency(dataRenovacao: Date | string | null | undefine
 }
 
 export function LeadsTable({ data }: LeadsTableProps) {
+  const router = useRouter();
   // Ordenação padrão inicial: por data de renovação mais próxima (ascendente, datas reais primeiro)
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'dataRenovacao', desc: false }
@@ -181,6 +188,9 @@ export function LeadsTable({ data }: LeadsTableProps) {
   const [isDispatching, setIsDispatching] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [singleDispatchLead, setSingleDispatchLead] = useState<Lead | null>(null);
+  
+  // Estado para Modal de Chat WhatsApp
+  const [selectedChatLead, setSelectedChatLead] = useState<Lead | null>(null);
 
   // Estatísticas Rápidas de Renovações
   const stats = useMemo(() => {
@@ -509,13 +519,25 @@ export function LeadsTable({ data }: LeadsTableProps) {
           <div className="flex items-center justify-end gap-1">
             <Button
               variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 relative"
+              onClick={() => setSelectedChatLead(lead)}
+              title="Visualizar Chat WhatsApp"
+            >
+              <MessageSquare className="h-4 w-4" />
+              {Array.isArray(lead.historicoCompleto) && lead.historicoCompleto.length > 0 && (
+                <span className="absolute 0 top-0.5 right-0.5 h-2 w-2 rounded-full bg-emerald-500" />
+              )}
+            </Button>
+
+            <Button
+              variant="outline"
               size="sm"
-              className="h-8 px-2.5 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/50 gap-1.5 font-medium"
               onClick={() => {
                 setSingleDispatchLead(lead);
                 setConfirmDialogOpen(true);
               }}
-              title="Disparar abordagem com IA (Lucas)"
+              className="h-8 px-2 text-xs font-semibold gap-1 text-blue-600 border-blue-200 hover:bg-blue-50 dark:border-blue-800 dark:hover:bg-blue-950/40"
             >
               <Bot className="h-3.5 w-3.5" />
               <span>Disparar</span>
@@ -531,6 +553,12 @@ export function LeadsTable({ data }: LeadsTableProps) {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Ações do Lead</DropdownMenuLabel>
                 <DropdownMenuItem
+                  onClick={() => setSelectedChatLead(lead)}
+                  className="text-emerald-600 dark:text-emerald-400 font-medium"
+                >
+                  <MessageSquare className="mr-2 h-4 w-4" /> Ver Chat WhatsApp
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   onClick={() => {
                     setSingleDispatchLead(lead);
                     setConfirmDialogOpen(true);
@@ -542,7 +570,7 @@ export function LeadsTable({ data }: LeadsTableProps) {
                 <DropdownMenuItem
                   onClick={() => window.open(`https://wa.me/${lead.contato.replace(/\D/g, '')}`, '_blank')}
                 >
-                  <MessageSquare className="mr-2 h-4 w-4 text-green-600" /> Abrir no WhatsApp
+                  <MessageSquare className="mr-2 h-4 w-4 text-green-600" /> Abrir no WhatsApp Web
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => navigator.clipboard.writeText(lead.contato)}
@@ -930,6 +958,18 @@ export function LeadsTable({ data }: LeadsTableProps) {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Chat WhatsApp Rápido */}
+      <Dialog open={!!selectedChatLead} onOpenChange={(open) => !open && setSelectedChatLead(null)}>
+        <DialogContent className="max-w-4xl p-0 border-0 bg-transparent shadow-2xl overflow-hidden sm:rounded-2xl">
+          {selectedChatLead && (
+            <LeadChatWhatsApp 
+              lead={selectedChatLead} 
+              onRefreshLead={() => router.refresh()} 
+            />
+          )}
         </DialogContent>
       </Dialog>
 

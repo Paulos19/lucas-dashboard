@@ -27,6 +27,7 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { LeadFormDialog } from './lead-form-dialog';
 import { LeadAttachments } from './lead-attachments';
+import { LeadChatWhatsApp } from './lead-chat-whatsapp';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 interface LeadDetailsViewProps {
@@ -435,8 +436,21 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
 
         {/* Coluna Direita - Abas de Acompanhamento */}
         <div className="lg:col-span-2 space-y-6">
-          <Tabs defaultValue="visaoGeral" className="w-full">
+          <Tabs defaultValue="conversaWhatsApp" className="w-full">
             <TabsList className="w-full justify-start bg-transparent border-b border-slate-200 dark:border-slate-800 rounded-none h-auto p-0 mb-6 gap-6 overflow-x-auto no-scrollbar">
+              <TabsTrigger 
+                value="conversaWhatsApp" 
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-500 data-[state=active]:text-emerald-500 dark:data-[state=active]:text-emerald-400 data-[state=active]:bg-transparent px-1 pb-3 text-muted-foreground hover:text-slate-900 dark:hover:text-slate-100 transition-colors flex items-center gap-1.5 font-semibold"
+              >
+                <MessageSquare className="h-4 w-4 text-emerald-500" />
+                <span>Chat WhatsApp</span>
+                {Array.isArray(lead.historicoCompleto) && lead.historicoCompleto.length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                    {lead.historicoCompleto.length}
+                  </span>
+                )}
+              </TabsTrigger>
+
               <TabsTrigger 
                 value="visaoGeral" 
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 data-[state=active]:bg-transparent px-1 pb-3 text-muted-foreground hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
@@ -465,6 +479,14 @@ export function LeadDetailsView({ lead }: LeadDetailsViewProps) {
                 Dados da Planilha
               </TabsTrigger>
             </TabsList>
+
+            {/* ABA 0: Conversa WhatsApp */}
+            <TabsContent value="conversaWhatsApp" className="mt-0 space-y-4">
+              <LeadChatWhatsApp 
+                lead={lead} 
+                onRefreshLead={() => router.refresh()} 
+              />
+            </TabsContent>
 
             {/* ABA 1: Visão Geral */}
             <TabsContent value="visaoGeral" className="space-y-6 mt-0">
