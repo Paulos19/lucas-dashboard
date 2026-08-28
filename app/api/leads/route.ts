@@ -2,8 +2,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
+import { parseAndFormatChatHistory } from '@/lib/chatParser';
 
-const N8N_INTERNAL_API_KEY = process.env.N8N_INTERNAL_API_KEY;
+const N8N_INTERNAL_API_KEY = process.env.N8N_INTERNAL_API_KEY || process.env.API_SECRET_KEY || process.env.N8N_API_KEY;
 
 // Função auxiliar para padronizar telefones BR
 function standardizePhone(phone: string): string {
@@ -18,7 +19,7 @@ function standardizePhone(phone: string): string {
 // GET: Lista ou busca leads (Suporta Sessão do Dashboard e API Key do n8n)
 export async function GET(request: Request) {
   const session = await auth();
-  const apiKey = request.headers.get('x-api-key');
+  const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
   
   let userId = session?.user?.id;
 
@@ -51,10 +52,11 @@ export async function GET(request: Request) {
 
     if (phone) {
       const cleanPhone = standardizePhone(phone);
+      const last8 = phone.replace(/\D/g, '').slice(-8);
       whereClause.OR = [
         { contato: cleanPhone },
         { contato: phone },
-        { contato: { contains: phone.slice(-8) } }
+        { contato: { contains: last8 } }
       ];
     }
 
@@ -83,7 +85,8 @@ export async function GET(request: Request) {
         },
         user: {
           select: { id: true, name: true, phone: true, email: true }
-        }
+        },
+        agendamento: true
       }
     });
 
@@ -102,7 +105,7 @@ export async function GET(request: Request) {
 // POST: Criação / Atualização de Leads (Dashboard e n8n)
 export async function POST(request: Request) {
   const session = await auth();
-  const apiKey = request.headers.get('x-api-key');
+  const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
   
   let userId = session?.user?.id;
 
@@ -126,25 +129,45 @@ export async function POST(request: Request) {
     }
 
     const cleanPhone = standardizePhone(contato);
+    const rawDigits = contato.replace(/\D/g, '');
+    const last8 = rawDigits.slice(-8);
 
-    // Busca lead existente se houver
+    // Busca lead existente por contato
     const existingLead = await prisma.lead.findFirst({
       where: {
         OR: [
           { contato: cleanPhone },
-          { contato: contato }
+          { contato: contato },
+          { contato: { contains: last8 } },
+          { telefoneFixo: { contains: last8 } }
         ]
       }
     });
 
     const finalUserId = userId || body.userId || existingLead?.userId || null;
+    
+    // Tratamento inteligente do nome
+    const confirmedName = nome || dynamicData?.nomeConfirmado || (existingLead?.name !== 'Lead Novo' ? existingLead?.name : undefined);
+
+    // Tratamento e Formatação Universal do Histórico de Conversa (LangChain, Redis Chat Memory ou array)
+    const rawChatHistory = historicoCompleto || body.messages || body.chatHistory || body.redisChatMemory;
+    let formattedHistory: any = undefined;
+
+    if (rawChatHistory !== undefined) {
+      const existing = existingLead?.historicoCompleto || [];
+      const combined = [
+        ...(Array.isArray(existing) ? existing : [existing]),
+        ...(Array.isArray(rawChatHistory) ? rawChatHistory : [rawChatHistory])
+      ];
+      formattedHistory = parseAndFormatChatHistory(combined, confirmedName || existingLead?.name || 'Cliente');
+    }
 
     let lead;
     if (existingLead) {
       lead = await prisma.lead.update({
         where: { id: existingLead.id },
         data: {
-          ...(nome && { name: nome }),
+          ...(confirmedName && { name: confirmedName }),
           ...(segmentacao && { segmentacao }),
           ...(faturamentoEstimado && { faturamentoEstimado }),
           ...(prioridade && { prioridade }),
@@ -158,7 +181,7 @@ export async function POST(request: Request) {
           ...(resumoDaConversa !== undefined && { resumoDaConversa }),
           ...(firstContactSent !== undefined && { firstContactSent }),
           ...(dynamicData && { dynamicData }),
-          ...(historicoCompleto && { historicoCompleto }),
+          ...(formattedHistory !== undefined && { historicoCompleto: formattedHistory }),
           updatedAt: new Date()
         }
       });
@@ -166,7 +189,7 @@ export async function POST(request: Request) {
       lead = await prisma.lead.create({
         data: {
           userId: finalUserId,
-          name: nome || 'Lead Novo',
+          name: confirmedName || 'Lead Novo',
           contato: cleanPhone,
           segmentacao: segmentacao || 'ENTRANTE',
           faturamentoEstimado: faturamentoEstimado || '',
@@ -178,7 +201,7 @@ export async function POST(request: Request) {
           corretorNome: corretorNome || null,
           dataRenovacao: dataRenovacao ? new Date(dataRenovacao) : null,
           dynamicData: dynamicData || {},
-          historicoCompleto: historicoCompleto || [],
+          historicoCompleto: formattedHistory || [],
           resumoDaConversa: resumoDaConversa || null,
           status: status || 'ENTRANTE',
           firstContactSent: firstContactSent ?? false

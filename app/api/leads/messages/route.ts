@@ -3,19 +3,9 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { normalizePhoneNumber } from '@/lib/phoneUtils';
+import { parseAndFormatChatHistory, StandardChatMessage } from '@/lib/chatParser';
 
 const N8N_INTERNAL_API_KEY = process.env.N8N_INTERNAL_API_KEY || process.env.API_SECRET_KEY || process.env.N8N_API_KEY;
-
-export interface ChatMessageItem {
-  id: string;
-  role: 'assistant' | 'user' | 'system' | 'agent' | 'lead';
-  content: string;
-  timestamp: string;
-  senderName?: string;
-  status?: 'sent' | 'delivered' | 'read';
-  mediaUrl?: string | null;
-  messageType?: 'text' | 'image' | 'audio' | 'document';
-}
 
 function checkAuthorization(session: any, apiKey?: string | null) {
   if (session?.user?.id) {
@@ -27,7 +17,7 @@ function checkAuthorization(session: any, apiKey?: string | null) {
   return { authorized: false, isAdmin: false, userId: null };
 }
 
-// POST: Registra uma nova mensagem (enviada pelo Lucas ou recebida do Lead)
+// POST: Registra ou sincroniza mensagens (LangChain, Redis Chat Memory, ChatML ou texto simples)
 export async function POST(request: Request) {
   const session = await auth();
   const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
@@ -45,14 +35,18 @@ export async function POST(request: Request) {
       contato, 
       role, 
       content, 
-      messages, 
+      messages,
+      chatHistory,
+      redisChatMemory,
+      historicoCompleto,
       senderName, 
       timestamp, 
       mediaUrl, 
       messageType, 
       resumoDaConversa, 
       status,
-      firstContactSent
+      firstContactSent,
+      nome
     } = body;
 
     // Localizar o Lead por ID ou Telefone
@@ -83,111 +77,53 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Lead não encontrado para registrar a mensagem.' }, { status: 404 });
     }
 
-    // Obter histórico existente
-    let existingHistory: ChatMessageItem[] = [];
-    if (Array.isArray(lead.historicoCompleto)) {
-      existingHistory = lead.historicoCompleto as any[];
-    } else if (typeof lead.historicoCompleto === 'string') {
-      try {
-        existingHistory = JSON.parse(lead.historicoCompleto);
-      } catch {
-        existingHistory = [];
-      }
+    const leadDisplayName = nome || (lead.name !== 'Lead Novo' ? lead.name : 'Cliente');
+
+    // Reunir qualquer formato de mensagens enviado
+    const incomingData = messages || chatHistory || redisChatMemory || historicoCompleto;
+    let newItemsToParse: any[] = [];
+
+    if (incomingData) {
+      newItemsToParse = Array.isArray(incomingData) ? incomingData : [incomingData];
+    } else if (content !== undefined || mediaUrl) {
+      newItemsToParse = [{
+        role: role || 'assistant',
+        content: content || '',
+        timestamp: timestamp || new Date().toISOString(),
+        senderName: senderName || (role === 'user' ? leadDisplayName : 'Lucas (IA)'),
+        mediaUrl,
+        messageType
+      }];
     }
 
-    const newMessagesToAdd: ChatMessageItem[] = [];
+    // Obter histórico existente no banco
+    const existing = lead.historicoCompleto || [];
+    const combined = [
+      ...(Array.isArray(existing) ? existing : [existing]),
+      ...newItemsToParse
+    ];
 
-    // Se foi passado um lote de mensagens
-    if (Array.isArray(messages) && messages.length > 0) {
-      for (const m of messages) {
-        if (!m.content && !m.mediaUrl) continue;
-        newMessagesToAdd.push({
-          id: m.id || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-          role: m.role || 'user',
-          content: m.content || '',
-          timestamp: m.timestamp || new Date().toISOString(),
-          senderName: m.senderName || (m.role === 'assistant' ? 'Lucas (IA)' : lead.name),
-          status: m.status || 'read',
-          mediaUrl: m.mediaUrl || null,
-          messageType: m.messageType || 'text'
-        });
-      }
-    } 
-    // Se foi passada uma mensagem individual
-    else if (content !== undefined || mediaUrl) {
-      const normalizedRole = role || 'user';
-      
-      // Se a mensagem contiver quebra por ||| (micro-mensagens do Lucas)
-      if (typeof content === 'string' && content.includes('|||')) {
-        const parts = content.split('|||').map(p => p.trim()).filter(Boolean);
-        const baseTime = timestamp ? new Date(timestamp).getTime() : Date.now();
-        
-        parts.forEach((part, index) => {
-          newMessagesToAdd.push({
-            id: `msg_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 6)}`,
-            role: normalizedRole,
-            content: part,
-            timestamp: new Date(baseTime + index * 1000).toISOString(),
-            senderName: senderName || (normalizedRole === 'assistant' ? 'Lucas (IA)' : lead.name),
-            status: 'read',
-            mediaUrl: mediaUrl || null,
-            messageType: messageType || 'text'
-          });
-        });
-      } else {
-        newMessagesToAdd.push({
-          id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-          role: normalizedRole,
-          content: content || '',
-          timestamp: timestamp || new Date().toISOString(),
-          senderName: senderName || (normalizedRole === 'assistant' ? 'Lucas (IA)' : lead.name),
-          status: 'read',
-          mediaUrl: mediaUrl || null,
-          messageType: messageType || 'text'
-        });
-      }
-    }
-
-    if (newMessagesToAdd.length === 0 && !resumoDaConversa && !status) {
-      return NextResponse.json({ error: 'Nenhuma mensagem ou alteração fornecida.' }, { status: 400 });
-    }
-
-    // Mesclar histórico evitando duplicatas de id ou conteúdo idêntico em timestamp próximo
-    const updatedHistory = [...existingHistory];
-    for (const newMsg of newMessagesToAdd) {
-      const isDuplicate = updatedHistory.some(
-        h => h.id === newMsg.id || 
-        (h.role === newMsg.role && h.content === newMsg.content && Math.abs(new Date(h.timestamp).getTime() - new Date(newMsg.timestamp).getTime()) < 3000)
-      );
-      if (!isDuplicate) {
-        updatedHistory.push(newMsg);
-      }
-    }
-
-    // Ordenar cronologicamente
-    updatedHistory.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    // Parser universal (formata LangChain Core, Redis Memory, ||| splits, etc)
+    const formattedHistory = parseAndFormatChatHistory(combined, leadDisplayName);
 
     // Atualizar o Lead no Banco
     const updatedLead = await prisma.lead.update({
       where: { id: lead.id },
       data: {
-        historicoCompleto: updatedHistory as any,
+        historicoCompleto: formattedHistory as any,
+        ...(nome && { name: nome }),
         ...(resumoDaConversa !== undefined && { resumoDaConversa }),
         ...(status !== undefined && { status }),
         ...(firstContactSent !== undefined && { firstContactSent }),
         updatedAt: new Date()
-      },
-      include: {
-        interestedInProduct: true,
-        agendamento: true
       }
     });
 
     return NextResponse.json({
       success: true,
       leadId: updatedLead.id,
-      totalMessages: updatedHistory.length,
-      messages: updatedHistory,
+      totalMessages: formattedHistory.length,
+      messages: formattedHistory,
       resumoDaConversa: updatedLead.resumoDaConversa
     }, { status: 200 });
 
@@ -197,7 +133,7 @@ export async function POST(request: Request) {
   }
 }
 
-// GET: Retorna mensagens de um lead por ID ou telefone
+// GET: Retorna mensagens formatadas de um lead por ID ou telefone
 export async function GET(request: Request) {
   const session = await auth();
   const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
@@ -270,9 +206,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 });
     }
 
-    const messages = Array.isArray(lead.historicoCompleto) 
-      ? lead.historicoCompleto 
-      : (typeof lead.historicoCompleto === 'string' ? JSON.parse(lead.historicoCompleto || '[]') : []);
+    const messages = parseAndFormatChatHistory(lead.historicoCompleto, lead.name);
 
     return NextResponse.json({
       lead: {

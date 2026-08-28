@@ -17,17 +17,9 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { getRenewalUrgency } from './leads-table';
 import { cn } from '@/lib/utils';
+import { parseAndFormatChatHistory, StandardChatMessage } from '@/lib/chatParser';
 
-export interface ChatMessage {
-  id: string;
-  role: 'assistant' | 'user' | 'system' | 'agent' | 'lead';
-  content: string;
-  timestamp: string;
-  senderName?: string;
-  status?: 'sent' | 'delivered' | 'read';
-  mediaUrl?: string | null;
-  messageType?: 'text' | 'image' | 'audio' | 'document';
-}
+export type ChatMessage = StandardChatMessage;
 
 interface LeadChatWhatsAppProps {
   lead: {
@@ -62,21 +54,12 @@ export function LeadChatWhatsApp({ lead, onRefreshLead, className }: LeadChatWha
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Parse inicial do histórico do lead
+  // Parse inicial do histórico do lead (suporta LangChain, Redis e JSON)
   useEffect(() => {
-    let parsed: ChatMessage[] = [];
-    if (Array.isArray(lead.historicoCompleto)) {
-      parsed = lead.historicoCompleto;
-    } else if (typeof lead.historicoCompleto === 'string') {
-      try {
-        parsed = JSON.parse(lead.historicoCompleto);
-      } catch {
-        parsed = [];
-      }
-    }
+    const parsed = parseAndFormatChatHistory(lead.historicoCompleto, lead.name);
     setMessages(parsed);
     setResumo(lead.resumoDaConversa || '');
-  }, [lead.historicoCompleto, lead.resumoDaConversa]);
+  }, [lead.historicoCompleto, lead.resumoDaConversa, lead.name]);
 
   // Função para buscar mensagens atualizadas da API
   const fetchMessages = async (silent = false) => {
@@ -86,7 +69,7 @@ export function LeadChatWhatsApp({ lead, onRefreshLead, className }: LeadChatWha
       if (res.ok) {
         const data = await res.json();
         if (data.messages) {
-          setMessages(data.messages);
+          setMessages(parseAndFormatChatHistory(data.messages, lead.name));
         }
         if (data.lead?.resumoDaConversa !== undefined) {
           setResumo(data.lead.resumoDaConversa || '');
@@ -341,7 +324,7 @@ export function LeadChatWhatsApp({ lead, onRefreshLead, className }: LeadChatWha
 
               {/* Mensagens do Dia */}
               {group.items.map((msg, mIdx) => {
-                const isAssistant = msg.role === 'assistant' || msg.role === 'agent' || msg.role === 'system';
+                const isAssistant = msg.role === 'assistant';
                 const msgDate = msg.timestamp ? new Date(msg.timestamp) : new Date();
                 const timeLabel = isNaN(msgDate.getTime()) ? '' : format(msgDate, 'HH:mm');
 
