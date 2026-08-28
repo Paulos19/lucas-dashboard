@@ -35,9 +35,19 @@ export async function GET(request: Request) {
         whereClause.status = status;
     }
 
+    const sortBy = searchParams.get('sortBy');
+
+    const orderBy: any = sortBy === 'updatedAt'
+      ? { updatedAt: 'desc' }
+      : [
+          { dataRenovacao: { sort: 'asc', nulls: 'last' } },
+          { prioridade: 'asc' },
+          { updatedAt: 'desc' }
+        ];
+
     const leads = await prisma.lead.findMany({
       where: whereClause,
-      orderBy: { updatedAt: 'desc' }, // Ordem cronológica
+      orderBy: orderBy,
       take: limit,
       skip: skip,
       include: {

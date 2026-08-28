@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
+import { differenceInDays } from 'date-fns';
 
 const N8N_DISPATCH_WEBHOOK_URL = 'https://n8n-n8n.khdya3.easypanel.host/webhook/lucas-disparar';
 
@@ -51,7 +52,12 @@ export async function POST(request: Request) {
         interestedInProduct: {
           select: { name: true }
         }
-      }
+      },
+      orderBy: [
+        { dataRenovacao: { sort: 'asc', nulls: 'last' } },
+        { prioridade: 'asc' },
+        { createdAt: 'asc' }
+      ]
     });
 
     if (leads.length === 0) {
@@ -61,7 +67,7 @@ export async function POST(request: Request) {
     let successCount = 0;
     const errors: Array<{ leadId: string; name: string; error: string }> = [];
 
-    // Processa os disparos
+    // Processa os disparos na ordem exata de prioridade (vencimento mais próximo primeiro)
     for (const lead of leads) {
       const phone = cleanPhone(lead.contato);
       if (!phone || phone.length < 10) {
@@ -71,6 +77,7 @@ export async function POST(request: Request) {
 
       const userSession = session.user as any;
       const instancePhone = lead.user?.phone ? cleanPhone(lead.user.phone) : (userSession.phone ? cleanPhone(userSession.phone) : 'default');
+      const diasAteVencimento = lead.dataRenovacao ? differenceInDays(new Date(lead.dataRenovacao), new Date()) : null;
 
       const payload = {
         leadId: lead.id,
@@ -78,11 +85,12 @@ export async function POST(request: Request) {
         leadName: lead.name,
         instancePhone: instancePhone,
         instanceName: instancePhone,
-        ramo: lead.ramo || lead.interestedInProduct?.name || 'Seguro',
+        ramo: lead.ramo || lead.interestedInProduct?.name || 'Seguro Residencial',
         campanha: lead.campanha || lead.origemLead || 'Campanha de Renovação',
         prioridade: lead.prioridade || 'Normal',
         agencia: lead.agencia || 'Agência Bancária',
         dataRenovacao: lead.dataRenovacao ? lead.dataRenovacao.toISOString() : null,
+        diasAteVencimento: diasAteVencimento,
         corretorNome: lead.corretorNome || lead.user?.name || session.user.name || 'CSB Seguros'
       };
 

@@ -1,18 +1,19 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Lead } from './leads-table';
+import { Lead, getRenewalUrgency } from './leads-table';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Clock, Phone, MoreHorizontal, Loader2 } from 'lucide-react';
+import { Clock, Phone, MoreHorizontal, Loader2, Calendar, Zap, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 // --- DND KIT IMPORTS ---
 import {
@@ -54,9 +55,15 @@ export function LeadsKanban({ data }: { data: Lead[] }) {
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } })
   );
 
-  // Derivação dos leads agrupados (Memória local)
+  // Derivação dos leads agrupados (Ordenados por vencimento mais próximo primeiro)
   const groupedLeads = KANBAN_COLUMNS.reduce((acc, col) => {
-    acc[col.id] = leads.filter(l => l.status === col.id);
+    acc[col.id] = leads
+      .filter(l => l.status === col.id)
+      .sort((a, b) => {
+        const timeA = a.dataRenovacao ? new Date(a.dataRenovacao).getTime() : Infinity;
+        const timeB = b.dataRenovacao ? new Date(b.dataRenovacao).getTime() : Infinity;
+        return timeA - timeB;
+      });
     return acc;
   }, {} as Record<string, Lead[]>);
 
@@ -264,6 +271,8 @@ function DraggableKanbanCard({ lead }: { lead: Lead }) {
 }
 
 function KanbanCard({ lead, isOverlay }: { lead: Lead, isOverlay?: boolean }) {
+  const urgency = getRenewalUrgency(lead.dataRenovacao);
+
   return (
     <Card className={`transition-all group ${isOverlay ? 'cursor-grabbing shadow-md' : 'cursor-grab hover:shadow-md'}`}>
       <CardContent className="p-3 space-y-2">
@@ -292,9 +301,37 @@ function KanbanCard({ lead, isOverlay }: { lead: Lead, isOverlay?: boolean }) {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2 mt-2">
+        {/* Badge de Urgência de Renovação & Status de Abordagem */}
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {lead.dataRenovacao && (
+            <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0.5 border shadow-2xs font-medium select-none", urgency.badgeClass)}>
+              <Calendar className="mr-1 h-2.5 w-2.5" />
+              {urgency.label}
+            </Badge>
+          )}
+
+          {lead.firstContactSent ? (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 select-none">
+              <CheckCircle2 className="mr-1 h-2.5 w-2.5" />
+              Abordado
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 select-none">
+              <Zap className="mr-1 h-2.5 w-2.5" />
+              Pendente
+            </Badge>
+          )}
+
+          {lead.prioridade && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 select-none">
+              Prio {lead.prioridade}
+            </Badge>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2 mt-1">
             {lead.interestedInProduct && (
-                <Badge variant="outline" className="text-[10px] h-5 bg-slate-50 select-none">
+                <Badge variant="outline" className="text-[10px] h-5 bg-slate-50 dark:bg-slate-900 select-none">
                     {lead.interestedInProduct.name}
                 </Badge>
             )}
@@ -305,6 +342,11 @@ function KanbanCard({ lead, isOverlay }: { lead: Lead, isOverlay?: boolean }) {
                 <Clock className="h-3 w-3" />
                 {formatDistanceToNow(new Date(lead.updatedAt), { addSuffix: true, locale: ptBR })}
             </span>
+            {lead.dataRenovacao && (
+              <span className="font-mono text-[9px] text-slate-500">
+                {new Date(lead.dataRenovacao).toLocaleDateString('pt-BR')}
+              </span>
+            )}
         </div>
       </CardContent>
     </Card>

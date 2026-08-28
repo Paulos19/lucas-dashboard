@@ -18,7 +18,7 @@ export default async function LeadsPage() {
   const isAdmin = session.user.role === 'ADMIN';
 
   // --- OTIMIZAÇÃO DE CARGA INICIAL ---
-  // Buscamos os leads por status para compor o Kanban e Tabela inicial
+  // Buscamos os leads priorizando renovações que vencerão primeiro
   const promises = KANBAN_STATUSES.map(status => {
     const whereClause: any = { status: status as any };
     if (!isAdmin) {
@@ -27,8 +27,12 @@ export default async function LeadsPage() {
 
     return prisma.lead.findMany({
       where: whereClause,
-      orderBy: { updatedAt: 'desc' },
-      take: 25, // Aumentado para ter uma boa amostragem na tabela
+      orderBy: [
+        { dataRenovacao: { sort: 'asc', nulls: 'last' } },
+        { prioridade: 'asc' },
+        { updatedAt: 'desc' }
+      ],
+      take: 50, // Amostra expressiva para carregar as renovações prioritárias
       include: {
         interestedInProduct: { select: { name: true } }
       }
