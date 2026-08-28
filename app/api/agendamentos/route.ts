@@ -42,7 +42,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { userId, leadId, contatoLead, dataHoraISO, nome, email, resumo } = body;
+    const { userId, leadId, contatoLead, dataHoraISO, nome, email, resumo, tipo } = body;
 
     const dataAgendamento = new Date(dataHoraISO);
     if (isNaN(dataAgendamento.getTime())) {
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     const rawPhone = cleanDigits(contatoLead);
     const last8Digits = rawPhone.slice(-8);
 
-    // 1. Busca prioritária por ID, depois por aproximação de telefone
+    // 1. Localiza o Lead por ID ou telefone
     let lead = null;
     if (leadId) {
       lead = await prisma.lead.findUnique({ where: { id: leadId } });
@@ -73,17 +73,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Lead não encontrado.' }, { status: 404 });
     }
 
-    // 2. Define o corretor responsável
     const finalUserId = userId || lead.userId || 'cmt1n79xv0000rxt40uffgwug';
+    const finalNome = nome || lead.name;
+    const finalTipo = tipo || 'COTACAO_RESIDENCIAL';
 
-    // 3. Verificação de Slot de Disponibilidade
+    // 2. Busca do Slot de Disponibilidade
     const slot = await prisma.availabilitySlot.findFirst({
       where: {
         userId: finalUserId,
         isBooked: false,
         startTime: {
-          gte: new Date(dataAgendamento.getTime() - 60000),
-          lte: new Date(dataAgendamento.getTime() + 60000)
+          gte: new Date(dataAgendamento.getTime() - 60000), // -1 min
+          lte: new Date(dataAgendamento.getTime() + 60000)  // +1 min
         }
       }
     });
@@ -94,44 +95,64 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
-    // 4. Transação Atômica
+    // 3. Transação Atômica: Atualiza Lead + Ocupa Slot + Upsert no Agendamento
     const result = await prisma.$transaction(async (tx) => {
-      const dynamicData = lead.dynamicData ? JSON.parse(JSON.stringify(lead.dynamicData)) : {};
-      if (email) dynamicData.email = email;
-      if (nome) dynamicData.nomeConfirmado = nome;
+      // Atualiza Lead
+      const dynamicDataObj: any = lead.dynamicData ? JSON.parse(JSON.stringify(lead.dynamicData)) : {};
+      if (email) dynamicDataObj.email = email;
+      if (finalNome) dynamicDataObj.nomeConfirmado = finalNome;
 
       await tx.lead.update({
         where: { id: lead.id },
         data: {
           userId: finalUserId,
-          dynamicData,
+          dynamicData: dynamicDataObj,
           status: 'AGENDADO_COTACAO',
           resumoDaConversa: resumo || 'Agendamento confirmado via WhatsApp.',
           updatedAt: new Date()
         }
       });
 
+      // Ocupa o Slot
       await tx.availabilitySlot.update({
         where: { id: slot.id },
-        data: { isBooked: true, leadId: lead.id }
+        data: {
+          isBooked: true,
+          leadId: lead.id
+        }
       });
 
-      return await tx.agendamento.create({
-        data: {
+      // Upsert no Agendamento (Atualiza se já existir agendamento para este lead, ou cria novo)
+      return await tx.agendamento.upsert({
+        where: {
+          leadId: lead.id
+        },
+        update: {
+          userId: finalUserId,
+          dataHora: dataAgendamento,
+          tipo: finalTipo,
+          status: 'PENDENTE',
+          resumo: resumo || 'Reagendamento automático via Lucas.',
+          updatedAt: new Date()
+        },
+        create: {
           userId: finalUserId,
           leadId: lead.id,
           dataHora: dataAgendamento,
-          tipo: 'REUNIAO_VENDAS',
-          status: 'CONFIRMADO',
-          resumo: resumo || `Agendamento automático via Lucas.`
+          tipo: finalTipo,
+          status: 'PENDENTE',
+          resumo: resumo || 'Agendamento automático via Lucas.'
         }
       });
     });
 
     return NextResponse.json({ success: true, id: result.id, agendamento: result }, { status: 201 });
 
-  } catch (error) {
-    console.error('Erro ao agendar:', error);
-    return NextResponse.json({ error: 'Erro interno ao processar agendamento.' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Erro detalhado ao agendar:', error);
+    return NextResponse.json({
+      error: 'Erro interno ao processar agendamento.',
+      details: error?.message || String(error)
+    }, { status: 500 });
   }
 }
