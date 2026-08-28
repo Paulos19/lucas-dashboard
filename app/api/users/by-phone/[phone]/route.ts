@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { normalizePhoneNumber } from '@/lib/phoneUtils';
+import { auth } from '@/lib/auth';
 
 const N8N_API_KEY = process.env.N8N_INTERNAL_API_KEY; 
 
@@ -11,20 +12,22 @@ type Context = {
 };
 
 async function handleRequest(request: Request, context: Context) {
-  // 1. Validação de Segurança
+  // 1. Validação de Segurança (Session ou API Key)
+  const session = await auth();
   const apiKey = request.headers.get('x-api-key');
-  if (apiKey !== N8N_API_KEY) {
+  if (!session?.user?.id && apiKey !== N8N_API_KEY) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
   }
 
-  const { phone } = await context.params;
+  const rawParams = await context.params;
+  const rawPhone = rawParams.phone ? decodeURIComponent(rawParams.phone) : '';
 
-  if (!phone) {
+  if (!rawPhone) {
     return NextResponse.json({ error: 'Telefone obrigatório' }, { status: 400 });
   }
 
   try {
-    const incomingNormalized = normalizePhoneNumber(phone);
+    const incomingNormalized = normalizePhoneNumber(rawPhone);
 
     // 2. Busca os usuários para encontrar o especialista correto
     const users = await prisma.user.findMany({
@@ -58,8 +61,8 @@ async function handleRequest(request: Request, context: Context) {
       where: {
         OR: [
           { contato: incomingNormalized },
-          { contato: phone },
-          { contato: { contains: phone.slice(-8) } }
+          { contato: rawPhone },
+          { contato: { contains: rawPhone.slice(-8) } }
         ]
       },
       include: {

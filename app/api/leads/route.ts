@@ -1,13 +1,13 @@
 // app/api/leads/route.ts
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 
-const prisma = new PrismaClient();
 const N8N_INTERNAL_API_KEY = process.env.N8N_INTERNAL_API_KEY;
 
 // Função auxiliar para padronizar telefones BR
 function standardizePhone(phone: string): string {
+  if (!phone) return '';
   let clean = phone.replace(/\D/g, '');
   if (clean.length >= 10 && clean.length <= 11) {
     clean = '55' + clean;
@@ -15,24 +15,51 @@ function standardizePhone(phone: string): string {
   return clean;
 }
 
-// GET: Lista leads com Paginação e Filtros
+// GET: Lista ou busca leads (Suporta Sessão do Dashboard e API Key do n8n)
 export async function GET(request: Request) {
   const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  const apiKey = request.headers.get('x-api-key');
+  
+  let userId = session?.user?.id;
+
+  // Validação de Segurança (Sessão de usuário OU x-api-key do n8n)
+  if (!userId) {
+    if (!N8N_INTERNAL_API_KEY || apiKey !== N8N_INTERNAL_API_KEY) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+  }
 
   const { searchParams } = new URL(request.url);
-  const status = searchParams.get('status'); // Filtro de coluna
+  const status = searchParams.get('status');
   const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '20');
+  const limit = parseInt(searchParams.get('limit') || '50');
   const skip = (page - 1) * limit;
+  const phone = searchParams.get('phone') || searchParams.get('contato');
+  const leadId = searchParams.get('id') || searchParams.get('leadId');
+  const targetUserId = searchParams.get('userId') || (session?.user?.role !== 'ADMIN' ? userId : undefined);
 
   try {
-    const whereClause: any = {
-        userId: session.user.id
-    };
+    const whereClause: any = {};
+
+    if (targetUserId) {
+      whereClause.userId = targetUserId;
+    }
+
+    if (leadId) {
+      whereClause.id = leadId;
+    }
+
+    if (phone) {
+      const cleanPhone = standardizePhone(phone);
+      whereClause.OR = [
+        { contato: cleanPhone },
+        { contato: phone },
+        { contato: { contains: phone.slice(-8) } }
+      ];
+    }
 
     if (status) {
-        whereClause.status = status;
+      whereClause.status = status;
     }
 
     const sortBy = searchParams.get('sortBy');
@@ -52,10 +79,18 @@ export async function GET(request: Request) {
       skip: skip,
       include: {
         interestedInProduct: {
-            select: { name: true }
+          select: { id: true, name: true, description: true, monthlyPremium: true, coverages: true, assistances: true }
+        },
+        user: {
+          select: { id: true, name: true, phone: true, email: true }
         }
       }
     });
+
+    // Se a busca foi por telefone ou ID específico e retornou 1 lead, pode retornar o objeto diretamente ou lista
+    if ((phone || leadId) && leads.length === 1 && !searchParams.get('formatList')) {
+      return NextResponse.json(leads[0]);
+    }
     
     return NextResponse.json(leads);
   } catch (error) {
@@ -64,7 +99,7 @@ export async function GET(request: Request) {
   }
 }
 
-// POST: Mantido (Criação/Update)
+// POST: Criação / Atualização de Leads (Dashboard e n8n)
 export async function POST(request: Request) {
   const session = await auth();
   const apiKey = request.headers.get('x-api-key');
@@ -73,33 +108,33 @@ export async function POST(request: Request) {
 
   // Validação de Segurança (API Key ou Sessão)
   if (!userId) {
-      if (apiKey !== N8N_INTERNAL_API_KEY || !N8N_INTERNAL_API_KEY) {
-        return NextResponse.json({ error: 'Acesso não autorizado.' }, { status: 401 });
-      }
+    if (!N8N_INTERNAL_API_KEY || apiKey !== N8N_INTERNAL_API_KEY) {
+      return NextResponse.json({ error: 'Acesso não autorizado.' }, { status: 401 });
+    }
   }
 
   try {
     const body = await request.json();
     const { 
-        nome, contato, segmentacao, faturamentoEstimado, 
-        dynamicData, historicoCompleto, status, resumoDaConversa, firstContactSent,
-        prioridade, ramo, campanha, agencia, dataRenovacao, telefoneFixo, corretorNome
+      nome, contato, segmentacao, faturamentoEstimado, 
+      dynamicData, historicoCompleto, status, resumoDaConversa, firstContactSent,
+      prioridade, ramo, campanha, agencia, dataRenovacao, telefoneFixo, corretorNome
     } = body;
 
     if (!contato) {
-        return NextResponse.json({ error: 'Contato é obrigatório' }, { status: 400 });
+      return NextResponse.json({ error: 'Contato é obrigatório' }, { status: 400 });
     }
 
     const cleanPhone = standardizePhone(contato);
 
     // Busca lead existente se houver
     const existingLead = await prisma.lead.findFirst({
-        where: {
-          OR: [
-            { contato: cleanPhone },
-            { contato: contato }
-          ]
-        }
+      where: {
+        OR: [
+          { contato: cleanPhone },
+          { contato: contato }
+        ]
+      }
     });
 
     const finalUserId = userId || body.userId || existingLead?.userId || null;
@@ -151,7 +186,7 @@ export async function POST(request: Request) {
       });
     }
 
-    return NextResponse.json({ success: true, leadId: lead.id }, { status: 200 });
+    return NextResponse.json({ success: true, leadId: lead.id, lead }, { status: 200 });
 
   } catch (error) {
     console.error("Erro ao salvar lead:", error);
