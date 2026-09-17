@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { getRenewalUrgency } from './leads-table';
+import { getRenewalUrgency } from '@/lib/renewal';
 import { cn } from '@/lib/utils';
 import { parseAndFormatChatHistory, StandardChatMessage } from '@/lib/chatParser';
 
@@ -91,9 +91,11 @@ export function LeadChatWhatsApp({ lead, onRefreshLead, className }: LeadChatWha
     return () => clearInterval(interval);
   }, [autoRefresh, lead.id]);
 
-  // Scroll automático para o final da conversa quando chegam novas mensagens
+  // Scroll automático restrito APENAS ao container interno da conversa
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
   }, [messages]);
 
   // Envio manual de mensagem / nota pelo corretor

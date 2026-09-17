@@ -41,7 +41,7 @@ export default async function LeadPage({ params }: PageProps) {
   }
 
   return (
-    <div className="container mx-auto py-8 max-w-6xl">
+    <div className="max-w-7xl mx-auto py-2 sm:py-4">
       <LeadDetailsView lead={lead} />
     </div>
   );

@@ -27,6 +27,11 @@ model User {
   // Novo campo Role com valor padrão USER
   role     Role    @default(USER) 
 
+  // Evolution API Config (WhatsApp Multi-Corretor)
+  evoApiKey           String?
+  evoInstance         String?
+  evoApiUrl          String?
+
   // ... mantenha o resto dos campos (onboardingCompleted, etc) ...
   onboardingCompleted Boolean @default(false)
   welcomeMessage      String?

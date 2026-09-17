@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { auth } from '@/lib/auth';
 import { differenceInDays } from 'date-fns';
 
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Nenhum lead selecionado para disparo.' }, { status: 400 });
     }
 
-    const whereClause: any = {
+    const whereClause: Prisma.LeadWhereInput = {
       id: { in: leadIds },
     };
 
@@ -43,11 +44,25 @@ export async function POST(request: Request) {
       whereClause.userId = session.user.id;
     }
 
+    const brokerFields = {
+      id: true,
+      name: true,
+      phone: true,
+      evoApiKey: true,
+      evoInstance: true,
+      evoApiUrl: true
+    } as any;
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: brokerFields
+    });
+
     const leads = await prisma.lead.findMany({
       where: whereClause,
       include: {
         user: {
-          select: { id: true, name: true, phone: true }
+          select: brokerFields
         },
         interestedInProduct: {
           select: { name: true }
@@ -69,14 +84,18 @@ export async function POST(request: Request) {
 
     // Processa os disparos na ordem exata de prioridade (vencimento mais próximo primeiro)
     for (const lead of leads) {
+      const leadWithRelations = lead as any;
       const phone = cleanPhone(lead.contato);
       if (!phone || phone.length < 10) {
         errors.push({ leadId: lead.id, name: lead.name, error: 'Telefone inválido ou ausente' });
         continue;
       }
 
-      const userSession = session.user as any;
-      const instancePhone = lead.user?.phone ? cleanPhone(lead.user.phone) : (userSession.phone ? cleanPhone(userSession.phone) : 'default');
+      const broker = leadWithRelations.user || currentUser;
+      const instancePhone = broker?.phone ? cleanPhone(broker.phone) : ((session.user as any)?.phone ? cleanPhone((session.user as any).phone) : 'default');
+      const instanceName = broker?.evoInstance || instancePhone;
+      const evoApiKey = broker?.evoApiKey || null;
+      const evoApiUrl = broker?.evoApiUrl || null;
       const diasAteVencimento = lead.dataRenovacao ? differenceInDays(new Date(lead.dataRenovacao), new Date()) : null;
 
       const payload = {
@@ -84,14 +103,16 @@ export async function POST(request: Request) {
         phone: phone,
         leadName: lead.name,
         instancePhone: instancePhone,
-        instanceName: instancePhone,
-        ramo: lead.ramo || lead.interestedInProduct?.name || 'Seguro Residencial',
+        instanceName: instanceName,
+        evoApiKey: evoApiKey,
+        evoApiUrl: evoApiUrl,
+        ramo: lead.ramo || leadWithRelations.interestedInProduct?.name || 'Seguro Residencial',
         campanha: lead.campanha || lead.origemLead || 'Campanha de Renovação',
         prioridade: lead.prioridade || 'Normal',
         agencia: lead.agencia || 'Agência Bancária',
         dataRenovacao: lead.dataRenovacao ? lead.dataRenovacao.toISOString() : null,
         diasAteVencimento: diasAteVencimento,
-        corretorNome: lead.corretorNome || lead.user?.name || session.user.name || 'CSB Seguros'
+        corretorNome: lead.corretorNome || broker?.name || session.user.name || 'CSB Seguros'
       };
 
       try {
